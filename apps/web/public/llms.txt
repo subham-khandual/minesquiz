@@ -1,0 +1,42 @@
+# MinesQuiz: AI-Proctored Mining Statutory Examination Platform
+
+> MinesQuiz is an AI-proctored, computer-based testing (CBT) platform engineered for mining engineering candidates preparing for statutory examinations under the Directorate General of Mines Safety (DGMS), Ministry of Labour and Employment, Government of India.
+
+## Key Information
+* Official Website: https://minesquiz.com
+* Founder & Lead Architect: Subham Khandual (https://github.com/subham-khandual)
+* Statutory Regulatory Base: Coal Mines Regulations 2017 (CMR 2017), Mines Act 1952, DGMS Statutory Circulars
+* Target Examinations: First Class Mines Manager, Second Class Mines Manager, Mining Overman, Mining Sirdar, Gas Testing Certificate
+* Proctoring Engine: Client-Side MediaPipe 468-point facial mesh with WebAssembly execution, sub-50ms latency
+
+## Core Assessment Architecture
+* Zero Negative Marking: Incorrect answers carry 0 penalty. Candidates receive +1.0 mark per correct answer, encouraging thorough practice.
+* Passing Standard: Minimum 60.0% score required to pass statutory benchmarks (at least 18 correct answers out of 30 questions).
+* Dynamic Subject Randomization: Questions are sampled and shuffled using the Fisher-Yates algorithm. Option sequences (A, B, C, D) are uniquely permuted per candidate.
+* Zero-Knowledge Client Delivery: Correct option keys are stripped before transmission to the browser, eliminating client-side inspection vulnerabilities.
+
+## Primary Curriculum Papers
+* MIN-101: Mining Legislation, Mine Safety & CMR 2017
+* MIN-102: Mine Ventilation, Fire-Damp & Mine Gases Detection
+* MIN-103: Winning and Working, Explosives & Blasting Practices
+* MIN-104: Mine Surveying, Strata Control & Geotechnical Engineering
+
+## Biometric AI Proctoring Specifications
+* Face Landmark Tracking: MediaPipe 468-point 3D facial mesh tracks face presence and orientation in real-time.
+* Gaze Directional Anomaly: Continuous pitch, yaw, and roll calculation. Head turns exceeding 35 degrees generate integrity warnings.
+* Audio Integrity: Web Audio API computes root-mean-square (RMS) energy. Background noise above 0.35 RMS triggers ambient alerts.
+* Lockdown Enforcement: Fullscreen enforcement and browser visibility change detection prevent tab-switching or multi-window cheating.
+* Candidate Privacy: Video feeds remain strictly inside local browser memory. No continuous candidate video streams are uploaded to servers.
+
+## Key Statutory Regulations Reference (CMR 2017)
+* Regulation 153: Inflammable gas concentration shall not exceed 0.75% in the return airway of any ventilating district, or 1.25% in any part of the mine.
+* Regulation 154: Immediate cutoff of electrical supply when inflammable gas concentration reaches 1.25% in general body of air.
+* Regulation 160: Minimum air quantity standard requires at least 6 cubic meters per minute per person employed in the shift, or 2.5 cubic meters per minute per daily ton of coal output.
+* Regulation 129: Danger zone demarcation requires a minimum safety radius of 300 meters during blasting operations in open-cast mines.
+
+## Online Verification & Resources
+* Features: https://minesquiz.com/features
+* How It Works: https://minesquiz.com/how-it-works
+* Question Bank Resources: https://minesquiz.com/resources
+* AI Proctoring Whitepaper: https://minesquiz.com/ai-proctoring
+* Trust and Security Policy: https://minesquiz.com/trust-and-security

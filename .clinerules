@@ -1,0 +1,22 @@
+# MinesQuiz — Roo-Code / Cline Rules
+
+## Senior Developer Governance Protocol
+1. **Explicit Permission Required**: Never run destructive shell commands, git push, or delete files without explicit user approval.
+2. **Proposal First**: Present an architectural summary and table before implementing non-trivial features.
+3. **Build Verification**: Always verify changes by running `pnpm --filter @mines-quiz/web run build` with zero errors.
+
+## Response Style
+- **Hinglish in chat**: Chat explanations must use a clean Hindi + English mix.
+- **English in code**: All repository files, comments, and documentation must stay in English.
+- **No em-dashes**: Never use em-dashes (— or –). Use a comma or a period instead.
+- **Crisp & Structured**: Use bullet points and markdown tables. Avoid long paragraphs.
+- **Proper Spacing**: Maintain blank lines between sections for readability.
+
+## Monorepo Architecture
+- `apps/web`: Next.js 15 (App Router, Tailwind CSS, Zustand, Motion).
+- `apps/server`: Node.js + Express REST & WebSocket API.
+- `packages/ui`: Shared reusable UI components (Button, Card, Input).
+- `packages/types`: Shared TypeScript definitions.
+- `packages/utils`: Validation and scoring helpers. Run `pnpm --filter @mines-quiz/utils build` after modifying this package.
+- `services/face-detection`: Client-side MediaPipe face mesh and gaze estimator.
+- `services/webrtc`: Real-time candidate invigilation signaling server.

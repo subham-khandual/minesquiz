@@ -1,0 +1,58 @@
+# MinesQuiz Statutory Assessment Platform Robots Directives
+# https://minesquiz.com/robots.txt
+
+User-agent: *
+Allow: /
+Allow: /features
+Allow: /how-it-works
+Allow: /resources
+Allow: /ai-proctoring
+Allow: /trust-and-security
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+# Disallow private candidate sessions, exams, scoring, and administrative command center
+Disallow: /exam/
+Disallow: /results/
+Disallow: /admin/
+Disallow: /api/
+
+# Dedicated rule set for AI search engines (Perplexity, ChatGPT, Claude)
+User-agent: GPTBot
+Allow: /
+Allow: /resources
+Allow: /ai-proctoring
+Allow: /features
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /exam/
+Disallow: /results/
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /resources
+Allow: /ai-proctoring
+Allow: /features
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /exam/
+Disallow: /results/
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /resources
+Allow: /ai-proctoring
+Allow: /features
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /exam/
+Disallow: /results/
+Disallow: /admin/
+Disallow: /api/
+
+# Sitemap index
+Sitemap: https://minesquiz.com/sitemap.xml

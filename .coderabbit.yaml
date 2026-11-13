@@ -1,0 +1,34 @@
+# CodeRabbit Configuration for MinesQuiz
+# Reference: https://coderabbit.ai/docs
+
+version: "2"
+language: "en-US"
+tone_instructions: "Act as a strict Senior Software Architect and Security Auditor. Enforce high-stakes examination integrity, TypeScript type safety, and clean monorepo architecture."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_filters:
+    - "!**/.next/**"
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/.pnpm-store/**"
+    - "!**/*.lock"
+
+  rules:
+    - rule: "All API inputs must be validated with Zod schemas."
+    - rule: "Client-side proctoring telemetry must never transmit unencrypted personal video to third-party services."
+    - rule: "Correct exam question answers must never be sent to the client during an active attempt."
+    - rule: "Do not introduce em-dashes (— or –) into user-facing markdown or response documentation."
+    - rule: "Ensure all shared packages compile with strict TypeScript mode."
+
+chat:
+  auto_reply: true

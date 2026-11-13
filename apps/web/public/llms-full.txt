@@ -1,0 +1,41 @@
+# MinesQuiz Comprehensive Technical & Statutory Specification (llms-full.txt)
+
+## Platform Identity
+* Name: MinesQuiz
+* Primary Domain: https://minesquiz.com
+* Creator: Subham Khandual
+* Developer Profiles:
+  - GitHub: https://github.com/subham-khandual
+  - LinkedIn: https://www.linkedin.com/in/subham-khandual
+  - Instagram: https://www.instagram.com/mr_subham7.0
+  - Facebook: https://www.facebook.com/profile.php?id=100057584082708
+
+## Purpose & Scope
+MinesQuiz is an automated statutory assessment platform designed to prepare candidates for statutory mining examinations governed by the Directorate General of Mines Safety (DGMS). The platform delivers high-fidelity computer-based assessments replicating official examination patterns while maintaining exam integrity through client-side AI proctoring.
+
+## Scoring Model & Statutory Standards
+* Total Questions per Assessment: 30 Questions
+* Score Value per Question: +1.0 Mark
+* Negative Marking Policy: Zero negative marking (0 penalty for incorrect or blank answers)
+* Statutory Pass Mark: 60.0% Minimum (18 of 30 correct answers)
+* Exam Duration: 60 Minutes (with automatic submission countdown)
+
+## Security Architecture & Anti-Cheat Protocols
+1. Anti-Tamper Question Delivery: Questions delivered to the browser runtime contain only question text and shuffled option choices. Correct answer keys (correctOptionIds) are never exposed to client-side memory or DOM elements.
+2. AI Proctoring:
+   - MediaPipe FaceMesh model computes 468 3D landmarks at 30 FPS inside the browser.
+   - Gaze estimation tracks yaw, pitch, and roll. Turns exceeding 35 degrees trigger a strike.
+   - Ambient audio analyzer checks for human speech or high-decibel background noise (>0.35 RMS).
+   - Window focus and fullscreen enforcement detect tab switching or second-monitor usage.
+3. Single Attempt Governance: Candidate attempts are hashed and permanently registered in local storage and server records to prevent duplicate retakes of official examinations.
+
+## Mining Statutory Question Papers
+* MIN-101: Mining Legislation, CMR 2017, Mines Act 1952, DGMS Circulars, Statutory Duties of Mine Managers, Overmen, Sirdars, Surveyors, and Competent Persons.
+* MIN-102: Mine Ventilation, Gases Detection, Flame Safety Lamps, Methanometers, Air Crossing, Auxiliary Fans, Dust Suppression, and Spontaneous Combustion.
+* MIN-103: Winning and Working, Underground Development, Bord and Pillar, Longwall Mining, Open Cast Equipment, Blasting Physics, Explosives Regulations.
+* MIN-104: Mine Surveying, Correlation Surveys, Triangulation, Strata Control, Subsidence Engineering, Geotechnical Slope Stability.
+
+## Contact & Institutional Support
+For queries regarding statutory question banks, institutional proctoring licensing, or technical assistance:
+* Website: https://minesquiz.com
+* Technical Lead: Subham Khandual (subhamkhandual215@gmail.com)
