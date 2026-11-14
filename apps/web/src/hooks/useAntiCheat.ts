@@ -100,6 +100,13 @@ export function useAntiCheat({ enabled, onViolation }: AntiCheatOptions) {
 
     // 6. Active DevTools Viewport Delta Detection (detects docked inspect panels)
     const checkDevToolsDimensions = () => {
+      // Relax check on mobile devices, small screens, and touch viewports to eliminate false positives
+      const isMobileOrTouch =
+        window.innerWidth <= 768 ||
+        'ontouchstart' in window ||
+        (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+      if (isMobileOrTouch) return;
+
       const widthThreshold = window.outerWidth - window.innerWidth > 160;
       const heightThreshold = window.outerHeight - window.innerHeight > 160;
       if (widthThreshold || heightThreshold) {

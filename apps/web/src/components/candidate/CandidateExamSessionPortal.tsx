@@ -31,7 +31,8 @@ import {
   VolumeX,
   Smartphone,
   Eye,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { MINING_SUBJECTS, getSubjectByCode } from '../../lib/questionSampling';
@@ -71,6 +72,27 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
   const [faceDetectionReady, setFaceDetectionReady] = useState<boolean>(false);
   const [hasTestedHardware, setHasTestedHardware] = useState<boolean>(false);
   const [isTestingHardware, setIsTestingHardware] = useState<boolean>(false);
+
+  // Latest exam completion notice reception from exam submission
+  const [completionNotice, setCompletionNotice] = useState<{
+    quizTitle: string;
+    marksObtained: number;
+    totalMarks: number;
+    isPassed: boolean;
+    completedAt: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('mines_last_completion_notice');
+        if (stored) {
+          setCompletionNotice(JSON.parse(stored));
+          localStorage.removeItem('mines_last_completion_notice');
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   // Hidden video stream element for on-demand hardware testing
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -491,6 +513,29 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
           data-lenis-prevent="true"
           className="flex-1 w-full max-w-5xl mx-auto px-4 py-5 sm:px-6 sm:py-8 lg:px-8 space-y-6 sm:space-y-8 lg:overflow-y-auto lg:min-h-0 lg:overscroll-y-contain"
         >
+          {/* Examination Completion Success Banner */}
+          {completionNotice && (
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-2xl p-4 sm:p-5 flex items-start justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                <div className="text-left">
+                  <h3 className="font-poppins font-bold text-sm sm:text-base text-emerald-900 dark:text-emerald-200">
+                    Examination Submitted Successfully!
+                  </h3>
+                  <p className="font-inter text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 mt-0.5 leading-relaxed">
+                    Paper: <span className="font-semibold">{completionNotice.quizTitle}</span> &bull; Marks Obtained: <span className="font-bold text-emerald-700 dark:text-emerald-400">{completionNotice.marksObtained} / {completionNotice.totalMarks}</span> ({completionNotice.isPassed ? 'Statutory Pass' : 'Practice Completed'}). You can now select another paper or retake practice.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCompletionNotice(null)}
+                className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 p-1 rounded-lg cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           
           {/* ========================================================= */}
           {/* TAB 1: MOCK TEST (FOCUSED CLEAN LAUNCHPAD)                */}

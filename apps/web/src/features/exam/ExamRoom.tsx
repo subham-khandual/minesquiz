@@ -280,36 +280,53 @@ export const ExamRoom: React.FC = () => {
       if (typeof window !== 'undefined' && activeAttempt.userEmail) {
         localStorage.setItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`, activeAttempt.id);
 
-        // Store session review bundle for instant review on /results with full answer keys
+        const reviewBundle = {
+          quiz: currentQuiz,
+          attempt: activeAttempt,
+          answers: userAnswers,
+          masterQuestions:
+            masterQuestionsForScoring && masterQuestionsForScoring.length > 0
+              ? masterQuestionsForScoring
+              : (currentQuiz.questions || []).map((q) => {
+                  const master = questionMap.get(q.id);
+                  return master
+                    ? {
+                        ...q,
+                        correctOptionIds: master.correctOptionIds,
+                        explanation: master.explanation,
+                      }
+                    : q;
+                }),
+          mode: currentQuiz.id?.includes('-mock') ? 'mock' : 'live',
+        };
+
+        // Store session review bundles for both attemptId and latest fallback
         try {
-          localStorage.setItem(
-            `mines_session_review_${activeAttempt.id}`,
-            JSON.stringify({
-              quiz: currentQuiz,
-              attempt: activeAttempt,
-              answers: userAnswers,
-              masterQuestions:
-                masterQuestionsForScoring && masterQuestionsForScoring.length > 0
-                  ? masterQuestionsForScoring
-                  : (currentQuiz.questions || []).map((q) => {
-                      const master = questionMap.get(q.id);
-                      return master
-                        ? {
-                            ...q,
-                            correctOptionIds: master.correctOptionIds,
-                            explanation: master.explanation,
-                          }
-                        : q;
-                    }),
-              mode: currentQuiz.id?.includes('-mock') ? 'mock' : 'live',
-            })
-          );
+          localStorage.setItem(`mines_session_review_${activeAttempt.id}`, JSON.stringify(reviewBundle));
+          localStorage.setItem('mines_session_review_latest', JSON.stringify(reviewBundle));
         } catch (storageErr) {
           console.warn('[ExamRoom] LocalStorage review cache notice:', storageErr);
         }
+
+        // Store completion notice for candidate dashboard
+        try {
+          localStorage.setItem(
+            'mines_last_completion_notice',
+            JSON.stringify({
+              quizTitle: currentQuiz.title,
+              marksObtained: genuineMarksObtained,
+              totalMarks: currentQuiz.questions?.length || 30,
+              isPassed: genuineMarksObtained >= 18,
+              completedAt: new Date().toISOString(),
+            })
+          );
+        } catch (noticeErr) {
+          console.warn('[ExamRoom] Notice cache notice:', noticeErr);
+        }
       }
 
-      router.push(`/results/${activeAttempt.id}`);
+      // Return smoothly to Candidate Portal dashboard (prevents Cloudflare dynamic route crash)
+      router.push('/candidate');
     } catch (err: any) {
       alert(`Submission failed: ${err.message}`);
     } finally {
