@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { saveStudentOtp } from '../../../../../lib/studentAuthStore';
 import { sendCandidateRegistrationOtpEmail } from '../../../../../lib/emailTransporter';
 import { getClientIp, checkRateLimit, checkCooldown } from '../../../../../lib/rateLimit';
+import { isDisposableEmail, verifyEmailDomainMX } from '../../../../../lib/emailValidation';
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +31,29 @@ export async function POST(request: Request) {
     if (!email || !email.includes('@')) {
       return NextResponse.json(
         { success: false, error: 'Valid email address is required.' },
+        { status: 400 }
+      );
+    }
+
+    // 1. Guard against throwaway, temporary or disposable email domains
+    if (isDisposableEmail(email)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Temporary and disposable email addresses are strictly prohibited. Please use a permanent email account.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // 2. DNS MX Inspection: verify live mail exchange servers exist for the domain
+    const mxVerification = await verifyEmailDomainMX(email);
+    if (!mxVerification.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: mxVerification.reason || 'Invalid email domain. No active mail exchange servers found.',
+        },
         { status: 400 }
       );
     }
@@ -67,11 +91,11 @@ export async function POST(request: Request) {
     // Generate cryptographic-quality 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Save to OTP cache (10 min TTL = 600 seconds)
-    saveStudentOtp(email, fullName, otp, 600);
+    // Save to OTP cache (10 min TTL = 600 seconds) and obtain device tracking beacon token
+    const beaconToken = saveStudentOtp(email, fullName, otp, 600);
 
-    // Send candidate email via Gmail SMTP
-    const emailSent = await sendCandidateRegistrationOtpEmail(email, fullName, otp);
+    // Send candidate email via Gmail SMTP with tracking beacon
+    const emailSent = await sendCandidateRegistrationOtpEmail(email, fullName, otp, beaconToken);
 
     if (!emailSent) {
       return NextResponse.json(

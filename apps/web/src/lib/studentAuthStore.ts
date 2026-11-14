@@ -1,5 +1,13 @@
-// Global in-memory cache for candidate registration OTPs
+// Global in-memory cache for candidate registration OTPs and Device Telemetry
 // Preserves state across Next.js API route invocations
+
+export interface DeviceTelemetry {
+  openedAt?: string;
+  userAgent?: string;
+  ip?: string;
+  deviceType?: 'Android' | 'iPhone' | 'iPad' | 'Windows' | 'Mac' | 'Linux' | 'Mobile' | 'Desktop' | 'Unknown';
+  mailClient?: string;
+}
 
 export interface StudentOtpEntry {
   email: string;
@@ -8,6 +16,8 @@ export interface StudentOtpEntry {
   expiresAt: number;
   attempts: number;
   verified: boolean;
+  beaconToken?: string;
+  deviceTelemetry?: DeviceTelemetry;
 }
 
 const globalForStudentAuth = globalThis as unknown as {
@@ -22,14 +32,19 @@ if (process.env.NODE_ENV !== 'production') {
 
 /**
  * Save candidate registration OTP with TTL (default: 600 seconds = 10 minutes)
+ * Generates and returns a unique beaconToken for device open tracking.
  */
 export function saveStudentOtp(
   email: string,
   fullName: string,
   otp: string,
   ttlSeconds: number = 600
-): void {
+): string {
   const normalizedEmail = email.trim().toLowerCase();
+  const beaconToken =
+    Math.random().toString(36).substring(2, 12) +
+    Math.random().toString(36).substring(2, 12);
+
   studentOtpCache.set(normalizedEmail, {
     email: normalizedEmail,
     fullName: fullName.trim(),
@@ -37,7 +52,36 @@ export function saveStudentOtp(
     expiresAt: Date.now() + ttlSeconds * 1000,
     attempts: 0,
     verified: false,
+    beaconToken,
   });
+
+  return beaconToken;
+}
+
+/**
+ * Records device open telemetry when candidate views the OTP email
+ */
+export function recordEmailBeaconOpen(
+  beaconToken: string,
+  telemetry: DeviceTelemetry
+): { success: boolean; email?: string } {
+  for (const [email, entry] of studentOtpCache.entries()) {
+    if (entry.beaconToken === beaconToken) {
+      entry.deviceTelemetry = {
+        ...telemetry,
+        openedAt: new Date().toISOString(),
+      };
+      return { success: true, email };
+    }
+  }
+  return { success: false };
+}
+
+/**
+ * Retrieves the candidate OTP entry including active device telemetry
+ */
+export function getStudentOtpEntry(email: string): StudentOtpEntry | undefined {
+  return studentOtpCache.get(email.trim().toLowerCase());
 }
 
 /**
@@ -46,7 +90,7 @@ export function saveStudentOtp(
 export function verifyStudentOtp(
   email: string,
   otp: string
-): { success: boolean; error?: string; fullName?: string } {
+): { success: boolean; error?: string; fullName?: string; deviceTelemetry?: DeviceTelemetry } {
   const normalizedEmail = email.trim().toLowerCase();
   const entry = studentOtpCache.get(normalizedEmail);
 
@@ -86,14 +130,16 @@ export function verifyStudentOtp(
     };
   }
 
-  // Mark verified and delete OTP
+  // Mark verified and return telemetry
   entry.verified = true;
   const verifiedFullName = entry.fullName;
+  const telemetry = entry.deviceTelemetry;
   studentOtpCache.delete(normalizedEmail);
 
   return {
     success: true,
     fullName: verifiedFullName,
+    deviceTelemetry: telemetry,
   };
 }
 

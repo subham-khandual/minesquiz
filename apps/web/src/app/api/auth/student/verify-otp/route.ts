@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       message: 'Candidate email successfully verified.',
       email,
       fullName: result.fullName,
+      deviceTelemetry: result.deviceTelemetry,
     });
   } catch (error: any) {
     console.error('API /api/auth/student/verify-otp error:', error);

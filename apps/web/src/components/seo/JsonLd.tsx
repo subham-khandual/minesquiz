@@ -3,9 +3,10 @@ import React from 'react';
 interface JsonLdProps {
   faqItems?: Array<{ question: string; answer: string }>;
   breadcrumbs?: Array<{ name: string; url: string }>;
+  includeHowTo?: boolean;
 }
 
-export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs }) => {
+export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs, includeHowTo = true }) => {
   const websiteUrl = 'https://minesquiz.com';
 
   // 1. WebApplication Schema
@@ -113,7 +114,7 @@ export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs }) => {
     {
       question: 'What subjects are covered in MinesQuiz?',
       answer:
-        'MinesQuiz covers core statutory mining engineering papers including MIN-101 (Mining Legislation and Safety), MIN-102 (Mine Ventilation and Gas Detection), MIN-103 (Winning and Working Methods), and MIN-104 (Mine Surveying).',
+        'MinesQuiz covers core statutory mining engineering papers including MIN-101 (Mining Legislation and Safety), MIN-102 (Mine Ventilation and Gas Detection), MIN-103 (Winning and Working Methods), MIN-104 (Opencast Mining), MIN-105 (Explosives and Blasting), and MIN-106 (Mine Fires and Rescue).',
     },
   ];
 
@@ -132,17 +133,79 @@ export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs }) => {
     })),
   };
 
-  // 5. BreadcrumbList Schema (if provided)
-  const breadcrumbSchema = breadcrumbs
+  // 5. BreadcrumbList Schema (Hierarchical Breadcrumb Navigation)
+  const activeBreadcrumbs = breadcrumbs && breadcrumbs.length > 0
+    ? breadcrumbs
+    : [
+        { name: 'Home', url: websiteUrl },
+        { name: 'Features', url: `${websiteUrl}/features` },
+        { name: 'AI Proctoring', url: `${websiteUrl}/ai-proctoring` },
+        { name: 'How It Works', url: `${websiteUrl}/how-it-works` },
+        { name: 'Trust and Security', url: `${websiteUrl}/trust-and-security` },
+      ];
+
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: activeBreadcrumbs.map((crumb, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: crumb.name,
+      item: crumb.url,
+    })),
+  };
+
+  // 6. HowTo Schema (Answer Engine Optimization for "How to take a DGMS mock exam on MinesQuiz")
+  const howToSchema = includeHowTo
     ? {
         '@context': 'https://schema.org',
-        '@type': 'BreadcrumbList',
-        itemListElement: breadcrumbs.map((crumb, idx) => ({
-          '@type': 'ListItem',
-          position: idx + 1,
-          name: crumb.name,
-          item: crumb.url,
-        })),
+        '@type': 'HowTo',
+        name: 'How to Take an AI-Proctored DGMS Statutory Exam on MinesQuiz',
+        description:
+          'Step-by-step candidate guide to complete a statutory mining examination with automated proctoring on MinesQuiz.',
+        totalTime: 'PT60M',
+        estimatedCost: {
+          '@type': 'MonetaryAmount',
+          currency: 'INR',
+          value: '0',
+        },
+        step: [
+          {
+            '@type': 'HowToStep',
+            position: 1,
+            name: 'Register and Verify Email with OTP',
+            text: 'Sign up with your candidate email address and verify your identity using the 6-digit OTP code dispatched to your inbox.',
+            url: `${websiteUrl}/#register`,
+          },
+          {
+            '@type': 'HowToStep',
+            position: 2,
+            name: 'Select Your Mining Statutory Subject',
+            text: 'Choose from CMR 2017 Legislation, Mine Ventilation, Strata Control, Opencast Mining, or the Grand Full DGMS Mock.',
+            url: `${websiteUrl}/candidate`,
+          },
+          {
+            '@type': 'HowToStep',
+            position: 3,
+            name: 'Review Statutory Exam Guidelines and Instructions',
+            text: 'Carefully read the 5 guidelines and 5 restrictions including webcam visibility, zero window switching, and the 60-minute time limit.',
+            url: `${websiteUrl}/candidate`,
+          },
+          {
+            '@type': 'HowToStep',
+            position: 4,
+            name: 'Complete Questions in Fullscreen Mode',
+            text: 'Answer 30 statutory multiple-choice questions within 60 minutes with auto-saving protection active every 10 seconds.',
+            url: `${websiteUrl}/candidate`,
+          },
+          {
+            '@type': 'HowToStep',
+            position: 5,
+            name: 'Submit and Review Instant Scorecard',
+            text: 'Submit your exam paper to receive an immediate statutory passing certificate, question breakdown, and answer key explanations.',
+            url: `${websiteUrl}/results`,
+          },
+        ],
       }
     : null;
 
@@ -164,10 +227,14 @@ export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs }) => {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      {breadcrumbSchema && (
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      {howToSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(howToSchema) }}
         />
       )}
     </>
