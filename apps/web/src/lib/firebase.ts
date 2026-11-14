@@ -11,7 +11,7 @@ import {
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyAUb-dPemGDuGD3u7YLvMcFRe0cVtcBpT0',
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'minesquiz-4a688.firebaseapp.com',
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'minesquiz-4a688',
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'minesquiz-4a688.firebasestorage.app',
@@ -20,9 +20,17 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-02BFQ0FX67',
 };
 
-// Initialize Firebase once
+// Initialize Firebase safely
 export const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
+
+let authInstance: any = null;
+try {
+  authInstance = getAuth(firebaseApp);
+} catch (err) {
+  console.warn('[Firebase Auth] Initialization deferred:', err);
+}
+
+export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account',
@@ -30,6 +38,7 @@ googleProvider.setCustomParameters({
 
 // Safe Auth Helpers
 export const signInWithGoogle = async () => {
+  if (!auth) throw new Error('Firebase Auth is not initialized');
   try {
     return await signInWithPopup(auth, googleProvider);
   } catch (err: any) {
@@ -41,14 +50,17 @@ export const signInWithGoogle = async () => {
 };
 
 export const signInWithEmail = async (email: string, pass: string) => {
+  if (!auth) throw new Error('Firebase Auth is not initialized');
   return await signInWithEmailAndPassword(auth, email, pass);
 };
 
 export const signUpWithEmail = async (email: string, pass: string) => {
+  if (!auth) throw new Error('Firebase Auth is not initialized');
   return await createUserWithEmailAndPassword(auth, email, pass);
 };
 
 export const signOutUser = async () => {
+  if (!auth) return;
   return await signOut(auth);
 };
 
