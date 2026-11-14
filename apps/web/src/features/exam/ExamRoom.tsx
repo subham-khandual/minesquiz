@@ -319,7 +319,7 @@ export const ExamRoom: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col select-none">
+    <div className="w-full max-w-full overflow-x-hidden min-h-screen bg-slate-950 text-slate-100 flex flex-col select-none">
       <ViolationToast />
 
       {/* Fullscreen Overlay Enforcement - Only for Desktop Live Proctored Exams */}
@@ -383,23 +383,23 @@ export const ExamRoom: React.FC = () => {
       )}
 
       {/* Top Session Bar (Mines Quiz Header) */}
-      <header className="h-16 border-b border-slate-800 bg-slate-900/90 backdrop-blur px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm text-white shadow-md shadow-blue-500/20">
+      <header className="h-16 w-full max-w-full border-b border-slate-800 bg-slate-900/90 backdrop-blur px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 overflow-hidden">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm text-white shadow-md shadow-blue-500/20 shrink-0">
             🎯
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-sm sm:text-base text-white">Mines Quiz</span>
-              <span className="text-slate-500 text-xs hidden sm:inline">•</span>
-              <span className="font-medium text-xs sm:text-sm text-slate-300 truncate max-w-[180px] sm:max-w-xs">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="font-extrabold text-sm sm:text-base text-white shrink-0">Mines Quiz</span>
+              <span className="text-slate-500 text-xs hidden md:inline">•</span>
+              <span className="font-medium text-xs sm:text-sm text-slate-300 truncate max-w-[140px] sm:max-w-xs hidden md:inline">
                 {currentQuiz.title}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Screen Wake Lock Pill */}
           {isScreenAwake && (
             <div
@@ -429,7 +429,7 @@ export const ExamRoom: React.FC = () => {
           {/* Mobile Question Palette Toggle Button */}
           <button
             onClick={() => setShowMobileNavigator(true)}
-            className="lg:hidden p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white"
+            className="lg:hidden p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white shrink-0"
             title="Open Question Palette"
           >
             <LayoutGrid className="w-4 h-4 text-blue-400" />
@@ -439,15 +439,21 @@ export const ExamRoom: React.FC = () => {
           {isLiveProctored && (
             <button
               onClick={() => setShowMobileCamera(!showMobileCamera)}
-              className="lg:hidden p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white"
+              className="lg:hidden p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white shrink-0"
               title="Toggle Proctor Camera"
             >
               <Camera className="w-4 h-4" />
             </button>
           )}
 
-          <Button variant="primary" size="sm" onClick={() => setShowConfirmModal(true)}>
-            Finish Exam
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowConfirmModal(true)}
+            className="px-3 sm:px-4 text-xs font-bold shrink-0"
+          >
+            <span className="hidden sm:inline">Finish Exam</span>
+            <span className="sm:hidden">Finish</span>
           </Button>
         </div>
       </header>
@@ -468,7 +474,7 @@ export const ExamRoom: React.FC = () => {
       )}
 
       {/* Main 3-Column / Responsive Layout */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left 2 Cols: Sidebar Navigation (Quiz, Instructions, Help, Report) */}
         <aside className="lg:col-span-2 hidden lg:flex flex-col gap-2">
           <button

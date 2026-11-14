@@ -31,9 +31,9 @@ export const MINING_SUBJECTS: MiningSubject[] = [
     shortName: 'CMR 2017 & Mining Law',
     description: 'Statutory examination on CMR 2017, Mines Act 1952, statutory responsibilities, mine plans, safety committees, and accident notices.',
     durationMinutes: 45,
-    totalMarks: 50,
-    passingMarks: 30,
-    questionsCount: 20,
+    totalMarks: 30,
+    passingMarks: 18,
+    questionsCount: 30,
     iconName: 'FileText',
   },
   {
@@ -42,9 +42,9 @@ export const MINING_SUBJECTS: MiningSubject[] = [
     shortName: 'Ventilation & Gas Safety',
     description: 'Statutory limits for inflammable gas (CH4), toxic gases (CO, H2S), air quantity per person, anemometry, and auxiliary fans.',
     durationMinutes: 45,
-    totalMarks: 50,
-    passingMarks: 30,
-    questionsCount: 20,
+    totalMarks: 30,
+    passingMarks: 18,
+    questionsCount: 30,
     iconName: 'Wind',
   },
   {
@@ -53,9 +53,9 @@ export const MINING_SUBJECTS: MiningSubject[] = [
     shortName: 'Strata Control & Support',
     description: 'Systematic Support Rules (SSR), resin roof bolting anchorage tests, cable bolts, junction support, and depillaring safety.',
     durationMinutes: 45,
-    totalMarks: 50,
-    passingMarks: 30,
-    questionsCount: 20,
+    totalMarks: 30,
+    passingMarks: 18,
+    questionsCount: 30,
     iconName: 'ShieldAlert',
   },
   {
@@ -64,9 +64,9 @@ export const MINING_SUBJECTS: MiningSubject[] = [
     shortName: 'Opencast & HEMM Safety',
     description: 'Bench height-to-width ratios, dump stability, dumper haul road gradients, berm heights, and shovel-dumper interaction.',
     durationMinutes: 45,
-    totalMarks: 50,
-    passingMarks: 30,
-    questionsCount: 20,
+    totalMarks: 30,
+    passingMarks: 18,
+    questionsCount: 30,
     iconName: 'Truck',
   },
   {
@@ -75,9 +75,9 @@ export const MINING_SUBJECTS: MiningSubject[] = [
     shortName: 'Explosives & Blasting',
     description: 'Permitted explosives (P1, P3, P5), delay detonators, shotfirer statutory duties, blasting danger zone, and misfire remediation.',
     durationMinutes: 45,
-    totalMarks: 50,
-    passingMarks: 30,
-    questionsCount: 20,
+    totalMarks: 30,
+    passingMarks: 18,
+    questionsCount: 30,
     iconName: 'Zap',
   },
   {
@@ -86,9 +86,9 @@ export const MINING_SUBJECTS: MiningSubject[] = [
     shortName: 'Mine Fires & Rescue',
     description: 'Spontaneous combustion, Graham index, fire stopping seals, water danger zones, self-contained breathing apparatus, and rescue stations.',
     durationMinutes: 45,
-    totalMarks: 50,
-    passingMarks: 30,
-    questionsCount: 20,
+    totalMarks: 30,
+    passingMarks: 18,
+    questionsCount: 30,
     iconName: 'Flame',
   },
 ];
@@ -146,25 +146,36 @@ export function generateCandidateExamSession({
   const subject = getSubjectByCode(subjectCode);
   const prng = createSeededPRNG(`${candidateEmail.toLowerCase()}_${subjectCode}_${sessionSalt || Date.now()}`);
 
-  // 1. Filter questions by subject code
-  let candidatePool: MiningSubjectQuestion[] = [];
+  // 1. Filter primary subject questions
+  let primaryPool: MiningSubjectQuestion[] = [];
   if (subjectCode === 'MIN-ALL') {
-    candidatePool = [...MINING_STATUTORY_QUESTIONS];
+    primaryPool = [...MINING_STATUTORY_QUESTIONS];
   } else {
-    candidatePool = MINING_STATUTORY_QUESTIONS.filter(
+    primaryPool = MINING_STATUTORY_QUESTIONS.filter(
       (q) => q.subjectCode === subjectCode
     );
-    if (candidatePool.length === 0) {
-      candidatePool = [...MINING_STATUTORY_QUESTIONS];
+    if (primaryPool.length === 0) {
+      primaryPool = [...MINING_STATUTORY_QUESTIONS];
     }
   }
 
-  // 2. Shuffle master pool uniquely for this candidate
-  const shuffledPool = seededShuffle(candidatePool, prng);
+  // 2. Shuffle primary pool uniquely for this candidate
+  const shuffledPrimary = seededShuffle(primaryPool, prng);
 
-  // 3. Take target count based on subject and mode
-  const targetCount = mode === 'mock' ? Math.min(30, shuffledPool.length) : Math.min(subject.questionsCount, shuffledPool.length);
-  const sampledQuestions = shuffledPool.slice(0, targetCount);
+  // 3. Guaranteed 30-Question Paper Engine:
+  // If primary subject has fewer than 30 questions, backfill remaining slots from the full statutory pool
+  const candidatePool: MiningSubjectQuestion[] = [...shuffledPrimary];
+  if (candidatePool.length < 30) {
+    const remainingPool = MINING_STATUTORY_QUESTIONS.filter(
+      (q) => !candidatePool.some((selected) => selected.id === q.id)
+    );
+    const shuffledRemaining = seededShuffle(remainingPool, prng);
+    candidatePool.push(...shuffledRemaining);
+  }
+
+  // 4. Sample exactly 30 questions (or full available pool up to 30)
+  const targetCount = Math.min(30, candidatePool.length);
+  const sampledQuestions = candidatePool.slice(0, targetCount);
 
   // 4. Randomize question order and option choices for each question
   const clientQuestions: Question[] = [];

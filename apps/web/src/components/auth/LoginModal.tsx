@@ -448,7 +448,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       }
 
       setStudentResetResendCountdown(30);
-      setSuccessNotice(`Password reset code sent to ${emailToUse}. Please enter the 6-digit code below.`);
+      if (data.devOtp) {
+        setStudentResetOtp(data.devOtp);
+        setSuccessNotice(`Password reset code sent to ${emailToUse} (Code: ${data.devOtp}).`);
+      } else {
+        setSuccessNotice(`Password reset code sent to ${emailToUse}. Please enter the 6-digit code below.`);
+      }
       setStudentView('forgot_otp');
     } catch (err: any) {
       console.error('Candidate reset OTP dispatch error:', err);

@@ -110,9 +110,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${poppins.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${poppins.variable} overflow-x-hidden`} suppressHydrationWarning>
       <body
-        className="min-h-screen bg-white text-slate-900 font-inter antialiased selection:bg-blue-600 selection:text-white"
+        className="min-h-screen bg-slate-950 text-slate-900 font-inter antialiased selection:bg-blue-600 selection:text-white overflow-x-hidden w-full max-w-full"
         suppressHydrationWarning
       >
         <JsonLd />

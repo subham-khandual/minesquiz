@@ -21,7 +21,7 @@ export const ViolationToast: React.FC = () => {
 
   return (
     <div
-      className={`fixed top-20 right-6 z-50 max-w-sm w-full p-4 rounded-xl shadow-2xl border transition-all ${
+      className={`fixed top-4 left-3 right-3 sm:left-auto sm:right-6 sm:top-20 z-50 max-w-[calc(100vw-1.5rem)] sm:max-w-sm p-4 rounded-xl shadow-2xl border transition-all ${
         isWarning
           ? 'bg-amber-600 text-white border-amber-500 shadow-amber-900/30'
           : 'bg-rose-600 text-white border-rose-500 shadow-rose-900/40 animate-bounce'
