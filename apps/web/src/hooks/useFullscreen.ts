@@ -1,18 +1,19 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 export function useFullscreen(onExitFullscreen?: () => void) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const isMobileRef = useRef(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
       const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
       const detectedMobile = mobileRegex.test(navigator.userAgent) || (window.innerWidth <= 768);
       setIsMobile(detectedMobile);
+      isMobileRef.current = detectedMobile;
 
-      // On mobile devices where Fullscreen API is not supported (e.g. iOS Safari),
-      // auto-grant initial readiness so candidate is not trapped in fullscreen loop
-      if (detectedMobile && !document.documentElement.requestFullscreen) {
+      // On mobile devices, smartphone displays are already fullscreen hardware
+      if (detectedMobile) {
         setIsFullscreen(true);
       }
     }
@@ -48,6 +49,12 @@ export function useFullscreen(onExitFullscreen?: () => void) {
 
   useEffect(() => {
     const handleFullscreenChange = () => {
+      // On mobile devices, address bar and keyboard shifts trigger fullscreenchange; ignore on mobile
+      if (isMobileRef.current) {
+        setIsFullscreen(true);
+        return;
+      }
+
       const active = !!document.fullscreenElement;
       setIsFullscreen(active);
       if (!active && onExitFullscreen) {

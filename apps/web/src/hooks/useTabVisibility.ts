@@ -12,9 +12,12 @@ export function useTabVisibility(onTabSwitch: () => void) {
     };
 
     const handleWindowBlur = () => {
-      // Window lost focus (user clicked outside or switched apps)
-      switchCountRef.current += 1;
-      onTabSwitch();
+      // Only count blur if the page is actually hidden/backgrounded
+      // On mobile devices, window.blur fires during touch gestures, virtual keyboards, and permission prompts
+      if (document.hidden) {
+        switchCountRef.current += 1;
+        onTabSwitch();
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -28,4 +31,3 @@ export function useTabVisibility(onTabSwitch: () => void) {
 
   return { switchCount: switchCountRef.current };
 }
-

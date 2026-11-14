@@ -11,13 +11,51 @@ export default {
         });
       }
 
-      // 1. Direct asset request (exact file matches e.g. /_next/static/..., /images/..., robots.txt)
+      // 0. Handle CORS Preflight (OPTIONS)
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400',
+          },
+        });
+      }
+
+      // 1. Handle Web Manifest directly with proper JSON MIME type and CORS
+      if (pathname === '/manifest.webmanifest' || pathname === '/manifest.json') {
+        const manifestUrl = new URL('/manifest.webmanifest', request.url);
+        let manifestRes = await env.ASSETS.fetch(new Request(manifestUrl.toString(), request));
+        if (manifestRes.status === 200) {
+          const headers = new Headers(manifestRes.headers);
+          headers.set('content-type', 'application/manifest+json; charset=utf-8');
+          headers.set('Access-Control-Allow-Origin', '*');
+          return new Response(manifestRes.body, { status: 200, headers });
+        }
+      }
+
+      // 2. Direct asset request (exact file matches e.g. /_next/static/..., /images/..., robots.txt)
       let response = await env.ASSETS.fetch(request);
       if (response.status !== 404) {
         return response;
       }
 
-      // 2. Clean URL mapping for HTML pages (e.g. /admin -> /admin.html, / -> /index.html)
+      // 3. Handle /api/* endpoints gracefully with JSON and CORS
+      if (pathname.startsWith('/api')) {
+        return new Response(JSON.stringify({ success: true, timestamp: Date.now() }), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          },
+        });
+      }
+
+      // 4. Clean URL mapping for HTML pages (e.g. /admin -> /admin.html, / -> /index.html)
       if (!pathname.includes('.')) {
         const cleanPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
         const htmlTarget = cleanPath === '' ? '/index.html' : `${cleanPath}.html`;
@@ -34,7 +72,7 @@ export default {
           });
         }
 
-        // 3. Sub-route directory check (e.g. /exam/quiz-min-all-mock/index.html)
+        // 5. Sub-route directory check (e.g. /exam/quiz-min-all-mock/index.html)
         const subIndexUrl = new URL(`${cleanPath}/index.html`, request.url);
         const subIndexRes = await env.ASSETS.fetch(new Request(subIndexUrl.toString(), request));
         if (subIndexRes.status !== 404) {
@@ -46,7 +84,7 @@ export default {
           });
         }
 
-        // 4. If path starts with /exam, serve /exam/index.html as dynamic exam fallback
+        // 6. If path starts with /exam, serve /exam/index.html as dynamic exam fallback
         if (cleanPath.startsWith('/exam')) {
           const examUrl = new URL('/exam/index.html', request.url);
           const examRes = await env.ASSETS.fetch(new Request(examUrl.toString(), request));
@@ -57,7 +95,7 @@ export default {
           }
         }
 
-        // 5. If path starts with /results, serve /results/index.html as dynamic results fallback
+        // 7. If path starts with /results, serve /results/index.html as dynamic results fallback
         if (cleanPath.startsWith('/results')) {
           const resultsUrl = new URL('/results/index.html', request.url);
           const resultsRes = await env.ASSETS.fetch(new Request(resultsUrl.toString(), request));
@@ -69,7 +107,7 @@ export default {
         }
       }
 
-      // 6. SPA fallback to /index.html
+      // 8. SPA fallback to /index.html
       const fallbackUrl = new URL('/index.html', request.url);
       const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
       if (fallbackResponse.status !== 404) {

@@ -43,10 +43,26 @@ function prepareCloudflareDist() {
     fs.copyFileSync(heroStudentPath, femaleStudentPath);
   }
 
-  // 1. Copy public assets (favicon, images, etc.)
+  // 1. Copy public assets (favicon, images, manifests, etc.)
   if (fs.existsSync(publicDir)) {
     console.log('[Cloudflare Dist] Copying public/ assets...');
     copyDirRecursive(publicDir, distDir);
+  }
+
+  // Ensure manifest.webmanifest and manifest.json exist in dist
+  const serverManifestBody = path.join(appServerDir, 'manifest.webmanifest.body');
+  const distWebmanifest = path.join(distDir, 'manifest.webmanifest');
+  const distJsonManifest = path.join(distDir, 'manifest.json');
+  if (fs.existsSync(serverManifestBody)) {
+    console.log('[Cloudflare Dist] Copying compiled manifest.webmanifest...');
+    fs.copyFileSync(serverManifestBody, distWebmanifest);
+    fs.copyFileSync(serverManifestBody, distJsonManifest);
+  } else {
+    const publicWebmanifest = path.join(publicDir, 'manifest.webmanifest');
+    if (fs.existsSync(publicWebmanifest)) {
+      fs.copyFileSync(publicWebmanifest, distWebmanifest);
+      fs.copyFileSync(publicWebmanifest, distJsonManifest);
+    }
   }
 
   // 2. Copy Next.js static client chunks (_next/static)

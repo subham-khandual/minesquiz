@@ -322,8 +322,8 @@ export const ExamRoom: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col select-none">
       <ViolationToast />
 
-      {/* Fullscreen Overlay Enforcement - Only for Live Proctored Exams */}
-      {isLiveProctored && !isFullscreen && (
+      {/* Fullscreen Overlay Enforcement - Only for Desktop Live Proctored Exams */}
+      {isLiveProctored && !isMobile && !isFullscreen && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
           <ShieldAlert className="w-16 h-16 text-amber-400 mb-4 animate-bounce" />
           <h2 className="text-2xl font-black text-white mb-2">Examination Mode Required</h2>
