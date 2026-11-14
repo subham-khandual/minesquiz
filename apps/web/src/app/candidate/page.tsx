@@ -67,6 +67,25 @@ export default function CandidatePortalPage() {
     const scoringKeysForSession = mode === 'mock' ? rawMasterQuestionsForScoring : [];
 
     setQuizSession(quiz, attempt, scoringKeysForSession);
+
+    // Persist session across Cloudflare routing and browser refreshes
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(
+          'mines_active_quiz_session',
+          JSON.stringify({
+            quiz,
+            attempt,
+            masterQuestions: scoringKeysForSession,
+          })
+        );
+        localStorage.setItem('mines_candidate_email', candidateEmail);
+        localStorage.setItem('mines_candidate_name', user?.displayName || 'Subham Khandual');
+      } catch (storageErr) {
+        console.warn('Could not cache active quiz session:', storageErr);
+      }
+    }
+
     router.push(`/exam/${quiz.id}`);
   };
 

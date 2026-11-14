@@ -33,9 +33,43 @@ export default {
             headers,
           });
         }
+
+        // 3. Sub-route directory check (e.g. /exam/quiz-min-all-mock/index.html)
+        const subIndexUrl = new URL(`${cleanPath}/index.html`, request.url);
+        const subIndexRes = await env.ASSETS.fetch(new Request(subIndexUrl.toString(), request));
+        if (subIndexRes.status !== 404) {
+          const headers = new Headers(subIndexRes.headers);
+          headers.set('content-type', 'text/html; charset=utf-8');
+          return new Response(subIndexRes.body, {
+            status: subIndexRes.status,
+            headers,
+          });
+        }
+
+        // 4. If path starts with /exam, serve /exam/index.html as dynamic exam fallback
+        if (cleanPath.startsWith('/exam')) {
+          const examUrl = new URL('/exam/index.html', request.url);
+          const examRes = await env.ASSETS.fetch(new Request(examUrl.toString(), request));
+          if (examRes.status !== 404) {
+            const headers = new Headers(examRes.headers);
+            headers.set('content-type', 'text/html; charset=utf-8');
+            return new Response(examRes.body, { status: 200, headers });
+          }
+        }
+
+        // 5. If path starts with /results, serve /results/index.html as dynamic results fallback
+        if (cleanPath.startsWith('/results')) {
+          const resultsUrl = new URL('/results/index.html', request.url);
+          const resultsRes = await env.ASSETS.fetch(new Request(resultsUrl.toString(), request));
+          if (resultsRes.status !== 404) {
+            const headers = new Headers(resultsRes.headers);
+            headers.set('content-type', 'text/html; charset=utf-8');
+            return new Response(resultsRes.body, { status: 200, headers });
+          }
+        }
       }
 
-      // 3. Fallback to index.html for client-side dynamic routes
+      // 6. SPA fallback to /index.html
       const fallbackUrl = new URL('/index.html', request.url);
       const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
       if (fallbackResponse.status !== 404) {

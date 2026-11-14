@@ -18,6 +18,7 @@ import { apiClient } from '../../lib/apiClient';
 import { useScreenWakeLock } from '../../hooks/useScreenWakeLock';
 import { yieldToMainThread } from '../../lib/performanceYield';
 import { MINING_STATUTORY_QUESTIONS } from '../../data/miningQuestions';
+import { generateCandidateExamSession } from '../../lib/questionSampling';
 import {
   Maximize,
   AlertTriangle,
@@ -49,7 +50,72 @@ export const ExamRoom: React.FC = () => {
     toggleMarkForReview,
     getCurrentAnswersArray,
     timeRemainingSeconds,
+    setQuizSession,
   } = useQuizStore();
+
+  const [mounted, setMounted] = useState(false);
+
+  // Auto-Recovery & Session Hydration across Cloudflare Workers / page reloads
+  useEffect(() => {
+    setMounted(true);
+
+    if (!currentQuiz && typeof window !== 'undefined') {
+      // 1. Try restoring from sessionStorage
+      try {
+        const cached = sessionStorage.getItem('mines_active_quiz_session');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.quiz && parsed.attempt) {
+            setQuizSession(parsed.quiz, parsed.attempt, parsed.masterQuestions || []);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[ExamRoom] Session cache restore notice:', err);
+      }
+
+      // 2. Auto-generate from route URL parameters if sessionStorage is empty
+      const pathParts = window.location.pathname.split('/');
+      const rawId = pathParts[pathParts.length - 1] || 'quiz-min-all-mock';
+      const isLive = rawId.includes('-live');
+      const cleanCode = rawId.replace('quiz-', '').replace('-live', '').replace('-mock', '').toUpperCase();
+      const subjectCode = cleanCode || 'MIN-ALL';
+      const mode = isLive ? 'live' : 'mock';
+
+      const candidateEmail = localStorage.getItem('mines_candidate_email') || 'subhamkhandual215@gmail.com';
+      const candidateName = localStorage.getItem('mines_candidate_name') || 'Candidate Student';
+
+      const { quiz, rawMasterQuestionsForScoring } = generateCandidateExamSession({
+        subjectCode,
+        candidateEmail,
+        candidateName,
+        mode,
+      });
+
+      const attempt = {
+        id: 'attempt-' + Math.random().toString(36).substring(2, 9),
+        quizId: quiz.id,
+        quizTitle: quiz.title,
+        userId: 'candidate-user-' + Math.random().toString(36).substring(2, 6),
+        userEmail: candidateEmail,
+        userDisplayName: candidateName,
+        answers: [],
+        status: 'in-progress' as const,
+        startTime: new Date().toISOString(),
+        violationsCount: 0,
+      };
+
+      const scoringKeys = mode === 'mock' ? rawMasterQuestionsForScoring : [];
+      setQuizSession(quiz, attempt, scoringKeys);
+      try {
+        sessionStorage.setItem('mines_active_quiz_session', JSON.stringify({
+          quiz,
+          attempt,
+          masterQuestions: scoringKeys,
+        }));
+      } catch (e) {}
+    }
+  }, [currentQuiz, setQuizSession]);
 
   const {
     reportViolation,
@@ -124,12 +190,12 @@ export const ExamRoom: React.FC = () => {
     }
   }, [isTerminated, activeAttempt, currentQuiz]);
 
-  if (!currentQuiz || !activeAttempt || !currentQuiz.questions || currentQuiz.questions.length === 0) {
+  if (!mounted || !currentQuiz || !activeAttempt || !currentQuiz.questions || currentQuiz.questions.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950 text-white">
-        <div className="text-center">
-          <p className="text-slate-400 mb-4">No active examination session found.</p>
-          <Button onClick={() => router.push('/')}>Return to Dashboard</Button>
+        <div className="text-center space-y-4">
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-slate-400 text-sm">Loading examination environment...</p>
         </div>
       </div>
     );

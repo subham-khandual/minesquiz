@@ -35,6 +35,14 @@ function prepareCloudflareDist() {
   }
   fs.mkdirSync(distDir, { recursive: true });
 
+  // Ensure female-student.jpg exists in public/images
+  const femaleStudentPath = path.join(publicDir, 'images', 'female-student.jpg');
+  const heroStudentPath = path.join(publicDir, 'images', 'hero-student-proctoring.jpg');
+  if (!fs.existsSync(femaleStudentPath) && fs.existsSync(heroStudentPath)) {
+    console.log('[Cloudflare Dist] Creating female-student.jpg from hero-student-proctoring.jpg...');
+    fs.copyFileSync(heroStudentPath, femaleStudentPath);
+  }
+
   // 1. Copy public assets (favicon, images, etc.)
   if (fs.existsSync(publicDir)) {
     console.log('[Cloudflare Dist] Copying public/ assets...');
@@ -57,18 +65,44 @@ function prepareCloudflareDist() {
   console.log('[Cloudflare Dist] Distribution prepared successfully.');
 }
 
-function copyHtmlFiles(srcDir, destDir) {
+function copyHtmlFiles(srcDir, baseDestDir, currentSub = '') {
+  if (!fs.existsSync(srcDir)) return;
   const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+
   for (const entry of entries) {
     const srcPath = path.join(srcDir, entry.name);
+
     if (entry.isDirectory()) {
       if (entry.name !== 'api') {
-        copyHtmlFiles(srcPath, destDir);
+        const nextSub = currentSub ? path.join(currentSub, entry.name) : entry.name;
+        copyHtmlFiles(srcPath, baseDestDir, nextSub);
       }
     } else if (entry.name.endsWith('.html')) {
-      const destFile = path.join(destDir, entry.name);
-      fs.copyFileSync(srcPath, destFile);
-      console.log(`  -> Page: ${entry.name}`);
+      // 1. Root copy
+      const rootDest = path.join(baseDestDir, entry.name);
+      fs.copyFileSync(srcPath, rootDest);
+
+      // 2. Preserved subfolder copy (e.g. dist/exam/quiz-min-all-mock.html)
+      if (currentSub) {
+        const subDestDir = path.join(baseDestDir, currentSub);
+        fs.mkdirSync(subDestDir, { recursive: true });
+        const subDestFile = path.join(subDestDir, entry.name);
+        fs.copyFileSync(srcPath, subDestFile);
+
+        // Also create index.html in subfolder for clean directory URLs
+        const baseName = entry.name.replace('.html', '');
+        const cleanDir = path.join(subDestDir, baseName);
+        fs.mkdirSync(cleanDir, { recursive: true });
+        fs.copyFileSync(srcPath, path.join(cleanDir, 'index.html'));
+
+        // If it's inside exam/ or results/, also create top-level exam/index.html or results/index.html as fallback
+        const topSubIndex = path.join(subDestDir, 'index.html');
+        if (!fs.existsSync(topSubIndex)) {
+          fs.copyFileSync(srcPath, topSubIndex);
+        }
+      }
+
+      console.log(`  -> Page [${currentSub || 'root'}]: ${entry.name}`);
     }
   }
 }
