@@ -21,5 +21,5 @@ export default function AiProctoringLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return children;
 }
