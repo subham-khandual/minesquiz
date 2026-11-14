@@ -136,9 +136,9 @@ export const ExamRoom: React.FC = () => {
   // Determine if this session is an official Live Proctored Exam or self-paced Mock Practice
   const isLiveProctored = Boolean(currentQuiz?.proctoringEnabled && !currentQuiz?.id?.includes('-mock'));
 
-  // Anti-Cheat: Fullscreen enforcer (Only for Live Proctored Exams)
-  const { isFullscreen, requestFullscreen } = useFullscreen(() => {
-    if (isLiveProctored) {
+  // Anti-Cheat: Fullscreen enforcer (Only for Live Proctored Exams, relaxed for mobile viewports)
+  const { isFullscreen, requestFullscreen, isMobile, setIsFullscreen } = useFullscreen(() => {
+    if (isLiveProctored && !isMobile) {
       reportViolation('fullscreen_exit', 'You exited fullscreen mode! This action has been logged.');
     }
   });
@@ -326,14 +326,26 @@ export const ExamRoom: React.FC = () => {
       {isLiveProctored && !isFullscreen && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
           <ShieldAlert className="w-16 h-16 text-amber-400 mb-4 animate-bounce" />
-          <h2 className="text-2xl font-black text-white mb-2">Fullscreen Examination Mode Required</h2>
+          <h2 className="text-2xl font-black text-white mb-2">Examination Mode Required</h2>
           <p className="text-slate-400 max-w-md text-sm mb-6">
-            To ensure exam integrity, Mines Quiz requires fullscreen mode. Exiting fullscreen or switching tabs will log an integrity violation.
+            To ensure exam integrity, Mines Quiz requires focused examination mode. Leaving the exam screen or switching apps will log an integrity violation.
           </p>
-          <Button size="lg" onClick={requestFullscreen} className="flex items-center gap-2">
-            <Maximize className="w-5 h-5" />
-            Enter Fullscreen & Continue
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Button size="lg" onClick={requestFullscreen} className="flex items-center gap-2">
+              <Maximize className="w-5 h-5" />
+              {isMobile ? 'Enter Exam Mode' : 'Enter Fullscreen & Continue'}
+            </Button>
+            {isMobile && (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setIsFullscreen(true)}
+                className="text-slate-300 border-slate-700 hover:bg-slate-800"
+              >
+                Continue in Mobile View
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

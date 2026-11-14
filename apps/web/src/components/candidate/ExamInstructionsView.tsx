@@ -11,6 +11,7 @@ import {
   Monitor,
   UserX,
   Smartphone,
+  Headphones,
   EyeOff,
   AlertTriangle,
   ShieldCheck,
@@ -88,10 +89,16 @@ export const ExamInstructionsView: React.FC<ExamInstructionsViewProps> = ({
           </div>
         </div>
 
-        {/* Security Status Pill */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/90 border border-emerald-300 text-emerald-800 text-xs sm:text-sm font-semibold shadow-xs">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Secure Exam Environment</span>
+        {/* Security & Device Compatibility Status Pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/90 border border-emerald-300 text-emerald-800 text-xs sm:text-sm font-semibold shadow-xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Secure Exam Environment</span>
+          </div>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-100/90 border border-blue-300 text-blue-800 text-xs sm:text-sm font-semibold shadow-xs">
+            <Smartphone className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>Smartphone & Desktop Compatible</span>
+          </div>
         </div>
       </header>
 
@@ -173,13 +180,13 @@ export const ExamInstructionsView: React.FC<ExamInstructionsViewProps> = ({
                 </span>
               </li>
 
-              {/* Item 2: Face on Webcam */}
+              {/* Item 2: Face on Camera */}
               <li className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-full bg-cyan-50 border border-cyan-100 text-cyan-600 flex items-center justify-center shrink-0 shadow-2xs">
                   <Laptop className="w-5 h-5 stroke-[2.2]" />
                 </div>
                 <span className="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
-                  Keep your face clearly visible via webcam.
+                  Keep your face clearly visible via smartphone camera or webcam.
                 </span>
               </li>
 
@@ -229,13 +236,13 @@ export const ExamInstructionsView: React.FC<ExamInstructionsViewProps> = ({
 
             {/* 5 Restrictions List */}
             <ul className="space-y-4">
-              {/* Item 1: Window Switch Prohibited */}
+              {/* Item 1: Window / App Switch Prohibited */}
               <li className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 text-rose-500 flex items-center justify-center shrink-0 shadow-2xs">
                   <Monitor className="w-5 h-5 stroke-[2.2]" />
                 </div>
                 <span className="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
-                  Do not switch or minimize the browser window.
+                  Do not switch apps, minimize, or leave the browser screen.
                 </span>
               </li>
 
@@ -249,13 +256,13 @@ export const ExamInstructionsView: React.FC<ExamInstructionsViewProps> = ({
                 </span>
               </li>
 
-              {/* Item 3: No Phones or Gadgets */}
+              {/* Item 3: No Secondary Devices or External Aids */}
               <li className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 text-rose-500 flex items-center justify-center shrink-0 shadow-2xs">
-                  <Smartphone className="w-5 h-5 stroke-[2.2]" />
+                  <Headphones className="w-5 h-5 stroke-[2.2]" />
                 </div>
                 <span className="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
-                  Do not use mobile phones or other gadgets.
+                  Do not use secondary devices, earphones, or external study aids.
                 </span>
               </li>
 

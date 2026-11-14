@@ -733,7 +733,7 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-slate-200">
                 <div className="flex items-center gap-2 text-sm font-inter text-rose-600">
                   <AlertCircle className="w-5 h-5 shrink-0" />
-                  <span>Exiting fullscreen or switching tabs will register an integrity alert.</span>
+                  <span>Exiting exam mode or switching apps will register an integrity alert.</span>
                 </div>
 
                 <button

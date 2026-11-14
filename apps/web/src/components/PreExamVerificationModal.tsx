@@ -166,7 +166,7 @@ export const PreExamVerificationModal: React.FC<PreExamVerificationModalProps> =
                   onClick={onVerifiedAndProceed}
                   className="bg-blue-600 hover:bg-blue-500 font-bold px-6"
                 >
-                  Enter Fullscreen Exam Room
+                  Enter Exam Room
                 </Button>
               </div>
             </div>

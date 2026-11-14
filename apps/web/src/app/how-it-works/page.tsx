@@ -46,7 +46,7 @@ export default function HowItWorksPage() {
     {
       question: 'What hardware and browser do I need to take the statutory examination?',
       answer:
-        'A standard laptop or desktop with a working webcam, microphone, and a modern Chromium-based browser (Google Chrome, Microsoft Edge, or Brave). Mobile devices are not supported for high-stakes statutory exams.',
+        'A smartphone, tablet, laptop, or desktop with a working front camera, microphone, and a modern browser (Google Chrome, Apple Safari, Microsoft Edge, or Brave). Mobile phones are fully supported with responsive layout, touch navigation, and front camera proctoring.',
     },
     {
       question: 'How does the single attempt policy prevent fraud?',
