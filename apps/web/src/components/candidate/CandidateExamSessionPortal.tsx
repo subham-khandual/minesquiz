@@ -36,6 +36,7 @@ import {
 import { useAuthStore } from '../../stores/useAuthStore';
 import { MINING_SUBJECTS, getSubjectByCode } from '../../lib/questionSampling';
 import { SocialFooter } from '../common/SocialFooter';
+import { ExamInstructionsView } from './ExamInstructionsView';
 
 interface CandidateExamSessionPortalProps {
   quizTitle?: string;
@@ -49,7 +50,7 @@ interface CandidateExamSessionPortalProps {
 export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProps> = ({
   quizTitle = 'Mining Engineering & Safety Regulations (CMR)',
   durationMinutes = 60,
-  totalMarks = 100,
+  totalMarks = 30,
   questionsCount = 30,
   onStartExam,
   onLogout,
@@ -748,185 +749,19 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
           )}
 
           {/* ========================================================= */}
-          {/* TAB 3: DEDICATED INSTRUCTIONS (NEW FULL-PAGE VIEW)         */}
+          {/* TAB 3: DEDICATED INSTRUCTIONS (IMAGE DESIGN VIEW)          */}
           {/* ========================================================= */}
           {activeTab === 'instructions' && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.15 }}
-              className="space-y-6 sm:space-y-8 text-left"
             >
-              {/* Header Title */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-8 shadow-xs space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>Statutory Examination Manual</span>
-                </div>
-                <h1 className="font-poppins text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-                  Official Code of Conduct & Examination Rules
-                </h1>
-                <p className="font-inter text-sm sm:text-base text-slate-600 leading-relaxed">
-                  Carefully read all statutory regulations before launching your mock or proctored live assessment. Compliance is mandatory under DGMS guidelines.
-                </p>
-              </div>
-
-              {/* Two Column Grid: DOs vs DONTs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                
-                {/* DOs CARD (KYA KARNA HAI) */}
-                <div className="p-5 sm:p-7 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 space-y-4 shadow-xs">
-                  <div className="flex items-center gap-2.5 text-emerald-950 font-poppins font-bold text-lg border-b border-emerald-200/80 pb-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>DOs (KYA KARNA HAI)</span>
-                  </div>
-
-                  <ul className="space-y-4 text-sm font-inter text-emerald-950">
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-emerald-950">Stable Network & Single Seating</strong>
-                        <span className="text-emerald-800 leading-relaxed">Ensure a reliable internet connection. Remain seated facing your display screen during the entire assessment.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-emerald-950">Frontal Face Lighting</strong>
-                        <span className="text-emerald-800 leading-relaxed">Ensure adequate light falls directly on your face so webcam landmark detection remains 100% accurate.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-emerald-950">Read Questions Thoroughly</strong>
-                        <span className="text-emerald-800 leading-relaxed">Carefully read each question and all 4 options before submitting your selected choice.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-emerald-950">Review Answers Before Submit</strong>
-                        <span className="text-emerald-800 leading-relaxed">Use Previous and Mark for Review buttons to verify responses before final paper submission.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-emerald-950">Auto-Save Protection Active</strong>
-                        <span className="text-emerald-800 leading-relaxed">Answers are auto-saved every 10 seconds. When the timer reaches 00:00:00, the exam submits safely.</span>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-
-                {/* DONTs CARD (KYA NAHI KARNA HAI) */}
-                <div className="p-5 sm:p-7 rounded-2xl bg-rose-50/70 border border-rose-200/90 space-y-4 shadow-xs">
-                  <div className="flex items-center gap-2.5 text-rose-950 font-poppins font-bold text-lg border-b border-rose-200/80 pb-3">
-                    <AlertOctagon className="w-5 h-5 text-rose-600 shrink-0" />
-                    <span>DONTs (KYA NAHI KARNA HAI)</span>
-                  </div>
-
-                  <ul className="space-y-4 text-sm font-inter text-rose-950">
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-rose-950">No Tab Switching or Minimizing</strong>
-                        <span className="text-rose-800 leading-relaxed">Never switch browser tabs, press Alt+Tab, or minimize your window. Each exit logs an integrity strike.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-rose-950">No Secondary Person in Room</strong>
-                        <span className="text-rose-800 leading-relaxed">Only the registered candidate is permitted. If another person enters the camera frame, a flag is registered.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-rose-950">No Mobile Phones or Gadgets</strong>
-                        <span className="text-rose-800 leading-relaxed">Smartphones, smartwatches, Bluetooth earphones, and printed notes are strictly prohibited on the desk.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-rose-950">No Looking Away (&gt;35° Turns)</strong>
-                        <span className="text-rose-800 leading-relaxed">Continuous gaze deviation away from the screen or covering the camera lens triggers an invigilation flag.</span>
-                      </div>
-                    </li>
-
-                    <li className="flex items-start gap-3">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                      <div>
-                        <strong className="font-semibold block text-rose-950">Strict 3-Strike Disqualification</strong>
-                        <span className="text-rose-800 leading-relaxed">A maximum limit of 3 violation strikes is enforced. On the 3rd strike, the session terminates with 0 marks.</span>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-
-              </div>
-
-              {/* Scoring & Benchmark Specifications Card */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-7 shadow-xs space-y-4">
-                <h3 className="font-poppins text-lg font-bold text-slate-900">
-                  Examination Scoring & Passing Criteria
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm font-inter">
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <span className="text-xs text-slate-500 block font-medium">Question Value</span>
-                    <span className="font-bold text-slate-900 text-base mt-0.5 block tabular-nums">+1.0 Mark</span>
-                    <span className="text-xs text-slate-400 mt-1 block">Awarded for each correct answer</span>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <span className="text-xs text-slate-500 block font-medium">Negative Marking</span>
-                    <span className="font-bold text-emerald-700 text-base mt-0.5 block tabular-nums">0.0 Mark</span>
-                    <span className="text-xs text-slate-400 mt-1 block">Zero penalty for wrong answers</span>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <span className="text-xs text-slate-500 block font-medium">Statutory Pass Mark</span>
-                    <span className="font-bold text-emerald-700 text-base mt-0.5 block tabular-nums">60.0% Minimum</span>
-                    <span className="text-xs text-slate-400 mt-1 block">At least 18 correct answers required</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Navigation Action to Test */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-slate-200">
-                <span className="text-sm font-inter text-slate-500">
-                  Ready to test your knowledge? Proceed directly to practice or official assessment.
-                </span>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('mock')}
-                    className="w-full sm:w-auto min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-poppins font-bold text-sm px-6 py-3 rounded-xl transition-all cursor-pointer"
-                  >
-                    Go to Mock Practice
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('live')}
-                    className="w-full sm:w-auto min-h-[48px] bg-blue-600 hover:bg-blue-700 text-white font-poppins font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <span>Go to Live Quiz</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+              <ExamInstructionsView
+                defaultMode="mock"
+                subjectTitle={currentSubject.name}
+                onStartExam={(mode) => handleLaunchExam(mode, selectedSubjectCode)}
+              />
             </motion.div>
           )}
 

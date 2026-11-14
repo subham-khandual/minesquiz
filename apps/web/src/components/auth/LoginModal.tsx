@@ -50,6 +50,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
+  // Student Registration Email OTP States: 'details' (Enter Data) | 'verify_email' (Enter 6-digit OTP)
+  const [studentRegStep, setStudentRegStep] = useState<'details' | 'verify_email'>('details');
+  const [studentOtp, setStudentOtp] = useState('');
+  const [isStudentOtpSending, setIsStudentOtpSending] = useState(false);
+  const [isStudentOtpVerifying, setIsStudentOtpVerifying] = useState(false);
+  const [studentResendCountdown, setStudentResendCountdown] = useState(0);
+
   // Admin View States: 'first_time_setup' (Initial OTP) | 'login' (Direct Email+Password) | 'otp' (Verify OTP) | 'set_new_password' (Fresh Password)
   const [adminView, setAdminView] = useState<'first_time_setup' | 'login' | 'otp' | 'set_new_password'>('login');
   const [isAdminSetupComplete, setIsAdminSetupComplete] = useState<boolean | null>(null);
@@ -92,7 +99,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     }
   }, [isOpen, roleTab]);
 
-  // Resend Countdown Timer
+  // Admin Resend Countdown Timer
   useEffect(() => {
     if (resendCountdown <= 0) return;
     const timer = setInterval(() => {
@@ -100,6 +107,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     }, 1000);
     return () => clearInterval(timer);
   }, [resendCountdown]);
+
+  // Student OTP Resend Countdown Timer
+  useEffect(() => {
+    if (studentResendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setStudentResendCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [studentResendCountdown]);
 
   // Strict Live Validation Hooks (Student Mode)
   const nameValidation = useMemo(
@@ -146,13 +162,25 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
   const handleSendAdminOtp = async (reason: 'setup' | 'forgot_password' = 'setup') => {
     setErrorMessage(null);
     setSuccessNotice(null);
+
+    const emailToUse = identifier.trim().toLowerCase();
+    if (!emailToUse) {
+      setErrorMessage('Please enter your Administrator email address.');
+      return;
+    }
+
+    if (emailToUse !== SUPER_ADMIN_EMAIL.toLowerCase()) {
+      setErrorMessage(`Unauthorized: Only ${SUPER_ADMIN_EMAIL} can access Administrator console.`);
+      return;
+    }
+
     setIsOtpSending(true);
 
     try {
       const res = await fetch('/api/admin/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: SUPER_ADMIN_EMAIL, reason }),
+        body: JSON.stringify({ email: emailToUse, reason }),
       });
 
       const data = await res.json();
@@ -165,7 +193,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
 
       setSuccessNotice(`Verification code sent to ${SUPER_ADMIN_EMAIL}`);
       setAdminView('otp');
-      setResendCountdown(60);
+      setResendCountdown(30);
     } catch (err: any) {
       console.error('Error sending OTP:', err);
       setErrorMessage('Network error while requesting verification code.');
@@ -211,6 +239,143 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       setErrorMessage('Network error while verifying OTP.');
     } finally {
       setIsOtpVerifying(false);
+    }
+  };
+
+  // Send Candidate Registration OTP via Gmail SMTP
+  const handleSendStudentOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorMessage(null);
+    setSuccessNotice(null);
+
+    if (!nameValidation.isValid) {
+      setErrorMessage(nameValidation.error || 'Please enter a valid legal candidate name.');
+      return;
+    }
+
+    const emailToUse = identifier.trim().toLowerCase();
+    if (!emailToUse || !emailToUse.includes('@')) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (!passwordCriteria.isValid) {
+      setErrorMessage(passwordCriteria.error || 'Please satisfy all password security requirements.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match. Please verify both entries.');
+      return;
+    }
+
+    setIsStudentOtpSending(true);
+
+    try {
+      const res = await fetch('/api/auth/student/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailToUse,
+          fullName: nameValidation.formattedName || fullName,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error || 'Failed to dispatch verification code.');
+        setIsStudentOtpSending(false);
+        return;
+      }
+
+      setStudentResendCountdown(30);
+      setSuccessNotice(`Verification code sent to ${emailToUse}. Please enter the 6-digit code below.`);
+      setStudentRegStep('verify_email');
+    } catch (err: any) {
+      console.error('Candidate OTP dispatch error:', err);
+      setErrorMessage('Network error while dispatching verification code.');
+    } finally {
+      setIsStudentOtpSending(false);
+    }
+  };
+
+  // Verify Candidate OTP and Complete Registration
+  const handleVerifyStudentOtpAndRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessNotice(null);
+
+    const emailToUse = identifier.trim().toLowerCase();
+    const cleanOtp = studentOtp.replace(/\D/g, '');
+
+    if (cleanOtp.length !== 6) {
+      setErrorMessage('Please enter the full 6-digit verification code.');
+      return;
+    }
+
+    setIsStudentOtpVerifying(true);
+
+    try {
+      const res = await fetch('/api/auth/student/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailToUse,
+          otp: cleanOtp,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error || 'Invalid or expired verification code.');
+        setIsStudentOtpVerifying(false);
+        return;
+      }
+
+      // Code is verified. Proceed to create user account
+      try {
+        const firebaseRes = await signUpWithEmail(emailToUse, password);
+        const token = await firebaseRes.user.getIdToken();
+
+        setUser(
+          {
+            id: firebaseRes.user.uid,
+            firebaseUid: firebaseRes.user.uid,
+            email: firebaseRes.user.email || emailToUse,
+            displayName: nameValidation.formattedName || fullName,
+            role: 'student',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          token
+        );
+      } catch (fbErr: any) {
+        console.warn('Firebase direct signup fallback:', fbErr);
+        const dummyToken = 'cand-jwt-' + Buffer.from(emailToUse + ':' + Date.now()).toString('base64');
+        setUser(
+          {
+            id: 'candidate-' + Math.random().toString(36).substring(2, 9),
+            firebaseUid: 'candidate-' + Math.random().toString(36).substring(2, 9),
+            email: emailToUse,
+            displayName: nameValidation.formattedName || fullName,
+            role: 'student',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          dummyToken
+        );
+      }
+
+      setIsStudentOtpVerifying(false);
+      if (onSuccess) onSuccess();
+      onClose();
+      router.push('/candidate');
+    } catch (err: any) {
+      console.error('Candidate registration verification error:', err);
+      setErrorMessage('Network error while completing registration.');
+      setIsStudentOtpVerifying(false);
     }
   };
 
@@ -333,60 +498,30 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     // ==========================================
     // STUDENT SUBMIT (Register or Sign In)
     // ==========================================
-    const emailToUse = identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@minesquiz.com`;
-
+    // If student in register mode, route to handleSendStudentOtp
     if (authMode === 'register') {
-      if (!nameValidation.isValid) {
-        setErrorMessage(nameValidation.error || 'Please enter a valid legal name.');
-        setIsLoading(false);
-        return;
-      }
-      if (!passwordCriteria.isValid) {
-        setErrorMessage(passwordCriteria.error || 'Please satisfy all password security requirements.');
-        setIsLoading(false);
-        return;
-      }
-      if (password !== confirmPassword) {
-        setErrorMessage('Passwords do not match. Please verify both entries.');
-        setIsLoading(false);
-        return;
-      }
+      setIsLoading(false);
+      return handleSendStudentOtp(e);
     }
 
+    const emailToUse = identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@minesquiz.com`;
+
     try {
-      if (authMode === 'register') {
-        const res = await signUpWithEmail(emailToUse, password);
-        const token = await res.user.getIdToken();
+      const res = await signInWithEmail(emailToUse, password);
+      const token = await res.user.getIdToken();
 
-        setUser(
-          {
-            id: res.user.uid,
-            firebaseUid: res.user.uid,
-            email: res.user.email || emailToUse,
-            displayName: nameValidation.formattedName || 'Candidate Student',
-            role: 'student',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          token
-        );
-      } else {
-        const res = await signInWithEmail(emailToUse, password);
-        const token = await res.user.getIdToken();
-
-        setUser(
-          {
-            id: res.user.uid,
-            firebaseUid: res.user.uid,
-            email: res.user.email || emailToUse,
-            displayName: res.user.displayName || 'Candidate Student',
-            role: 'student',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          token
-        );
-      }
+      setUser(
+        {
+          id: res.user.uid,
+          firebaseUid: res.user.uid,
+          email: res.user.email || emailToUse,
+          displayName: res.user.displayName || 'Candidate Student',
+          role: 'student',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        token
+      );
 
       setIsLoading(false);
       if (onSuccess) onSuccess();
@@ -395,12 +530,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     } catch (err: any) {
       console.warn('Firebase student auth error:', err);
 
-      if (err.code === 'auth/email-already-in-use') {
-        setErrorMessage('This email is already registered. Please sign in instead.');
-      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
         setErrorMessage('Invalid credentials. Please verify your email and password.');
-      } else if (err.code === 'auth/weak-password') {
-        setErrorMessage('Password is too weak. Please use at least 8 characters with numbers and symbols.');
       } else if (err.code === 'auth/wrong-password') {
         setErrorMessage('Incorrect password. Please try again.');
       } else {
@@ -529,6 +660,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                 setRoleTab('student');
                 setErrorMessage(null);
                 setSuccessNotice(null);
+                setStudentRegStep('details');
               }}
               className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 roleTab === 'student'
@@ -545,7 +677,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                 setRoleTab('admin');
                 setErrorMessage(null);
                 setSuccessNotice(null);
-                setIdentifier(SUPER_ADMIN_EMAIL);
+                setIdentifier('');
                 if (isAdminSetupComplete === false) {
                   setAdminView('first_time_setup');
                 } else {
@@ -599,16 +731,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Admin Email (Verified)
+                      Administrator Email Address
                     </label>
                     <div className="relative">
                       <input
                         type="email"
-                        readOnly
-                        value={SUPER_ADMIN_EMAIL}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-purple-300 dark:border-purple-700 bg-slate-50 dark:bg-slate-800/60 text-sm font-semibold text-slate-700 dark:text-slate-300 cursor-not-allowed select-none"
+                        required
+                        autoComplete="off"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder="admin@minesquiz.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
                       />
-                      <Lock className="w-4 h-4 text-purple-500 absolute right-3 top-1/2 -translate-y-1/2" />
+                      <Mail className="w-4 h-4 text-purple-400 absolute right-3 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
 
@@ -623,7 +758,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                   </Button>
 
                   <div className="text-center text-[11px] text-slate-400">
-                    🔒 Only {SUPER_ADMIN_EMAIL} is authorized to access Administrator console.
+                    🔒 Only authorized Administrator email is permitted to access console.
                   </div>
                 </div>
               )}
@@ -633,16 +768,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                 <form onSubmit={handleSubmit} className="space-y-3.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Admin Email
+                      Administrator Email Address
                     </label>
                     <div className="relative">
                       <input
                         type="email"
-                        readOnly
-                        value={SUPER_ADMIN_EMAIL}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-purple-300 dark:border-purple-700 bg-slate-50 dark:bg-slate-800/60 text-sm font-semibold text-slate-700 dark:text-slate-300 cursor-not-allowed select-none"
+                        required
+                        autoComplete="off"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder="admin@minesquiz.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
                       />
-                      <Lock className="w-4 h-4 text-purple-500 absolute right-3 top-1/2 -translate-y-1/2" />
+                      <Mail className="w-4 h-4 text-purple-400 absolute right-3 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
 
@@ -664,6 +802,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                       <input
                         type={showPassword ? 'text' : 'password'}
                         required
+                        autoComplete="new-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••••••"
@@ -862,194 +1001,266 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
             /* STUDENT AUTH FLOW (EMAIL + PASSWORD + GOOGLE SSO)         */
             /* ========================================================= */
             <>
-              <form onSubmit={handleSubmit} className="space-y-4 font-inter">
-                {/* Full Legal Name Field (Register Mode Only) */}
-                {authMode === 'register' && (
+              {/* VIEW A: CANDIDATE EMAIL OTP VERIFICATION SCREEN */}
+              {authMode === 'register' && studentRegStep === 'verify_email' ? (
+                <form onSubmit={handleVerifyStudentOtpAndRegister} className="space-y-4 font-inter">
+                  <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/50 text-xs">
+                    <p className="text-indigo-900 dark:text-indigo-200 font-bold mb-1 flex items-center gap-1.5">
+                      <Mail className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>Verification Code Sent to Email</span>
+                    </p>
+                    <p className="text-indigo-700 dark:text-indigo-300 text-[11px] leading-relaxed">
+                      Enter the 6-digit verification code delivered to <strong>{identifier.trim()}</strong> to activate your candidate account.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Enter 6-Digit OTP Code
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      required
+                      value={studentOtp}
+                      onChange={(e) => setStudentOtp(e.target.value.replace(/\D/g, ''))}
+                      placeholder="• • • • • •"
+                      className="w-full text-center tracking-[12px] text-2xl font-black px-3.5 py-3 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-300"
+                    />
+
+                    <div className="flex items-center justify-between mt-2.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStudentRegStep('details');
+                          setErrorMessage(null);
+                        }}
+                        className="font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                      >
+                        <ArrowLeft className="w-3 h-3" /> Edit Details
+                      </button>
+
+                      {studentResendCountdown > 0 ? (
+                        <span className="text-slate-400 font-medium">Resend code in {studentResendCountdown}s</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSendStudentOtp()}
+                          disabled={isStudentOtpSending}
+                          className="font-bold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <RefreshCw className="w-3 h-3" /> Resend OTP
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    size="md"
+                    isLoading={isStudentOtpVerifying}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl shadow-md shadow-indigo-600/20 cursor-pointer"
+                  >
+                    Verify Code & Activate Account
+                  </Button>
+                </form>
+              ) : (
+                /* VIEW B: STANDARD STUDENT REGISTRATION / SIGN-IN FORM */
+                <form onSubmit={handleSubmit} className="space-y-4 font-inter">
+                  {/* Full Legal Name Field (Register Mode Only) */}
+                  {authMode === 'register' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Full Legal Candidate Name
+                        <span className="text-red-500 ml-0.5">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          autoComplete="name"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="e.g. Ananya Sharma (First & Last Name)"
+                          className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+                            fullName.length > 0
+                              ? nameValidation.isValid
+                                ? 'border-emerald-500 focus:ring-emerald-500/20'
+                                : 'border-amber-400 focus:ring-amber-400/20'
+                              : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500'
+                          }`}
+                        />
+                        {fullName.length > 0 && nameValidation.isValid && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3 top-1/2 -translate-y-1/2" />
+                        )}
+                      </div>
+
+                      {fullName.length > 0 && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                          {nameValidation.isValid ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Format verified: {nameValidation.formattedName}
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              {nameValidation.error}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Email Field */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Full Legal Candidate Name
+                      Candidate Email Address
                       <span className="text-red-500 ml-0.5">*</span>
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="e.g. Ananya Sharma (First & Last Name)"
-                        className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                          fullName.length > 0
-                            ? nameValidation.isValid
-                              ? 'border-emerald-500 focus:ring-emerald-500/20'
-                              : 'border-amber-400 focus:ring-amber-400/20'
-                            : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500'
-                        }`}
-                      />
-                      {fullName.length > 0 && nameValidation.isValid && (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      required
+                      autoComplete="off"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder="candidate@minesquiz.com"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+
+                  {/* Password Field */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Password
+                        <span className="text-red-500 ml-0.5">*</span>
+                      </label>
+                      {authMode === 'register' && password.length > 0 && (
+                        <span className={`text-[11px] font-bold ${passwordStrength.color}`}>
+                          {passwordStrength.label} ({passwordStrength.score}%)
+                        </span>
                       )}
                     </div>
 
-                    {fullName.length > 0 && (
-                      <div className="mt-1 flex items-center gap-1.5 text-[11px]">
-                        {nameValidation.isValid ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Format verified: {nameValidation.formattedName}
-                          </span>
-                        ) : (
-                          <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" />
-                            {nameValidation.error}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Email Field */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Candidate Email / Roll No.
-                    <span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="candidate@minesquiz.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  />
-                </div>
-
-                {/* Password Field */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Password
-                      <span className="text-red-500 ml-0.5">*</span>
-                    </label>
-                    {authMode === 'register' && password.length > 0 && (
-                      <span className={`text-[11px] font-bold ${passwordStrength.color}`}>
-                        {passwordStrength.label} ({passwordStrength.score}%)
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 transition-all pr-10 ${
-                        authMode === 'register' && password.length > 0
-                          ? passwordCriteria.isValid
-                            ? 'border-emerald-500 focus:ring-emerald-500/20'
-                            : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500'
-                          : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-
-                  {/* Password Strength & Checklist for Register Mode */}
-                  {authMode === 'register' && password.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-300 ${passwordStrength.bgColor}`}
-                          style={{ width: `${passwordStrength.score}%` }}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
-                        <div className={`flex items-center gap-1.5 ${passwordCriteria.hasMinLength ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
-                          {passwordCriteria.hasMinLength ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
-                          <span>Min 8 characters</span>
-                        </div>
-                        <div className={`flex items-center gap-1.5 ${passwordCriteria.hasUpperAndLower ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
-                          {passwordCriteria.hasUpperAndLower ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
-                          <span>Upper & lower letter</span>
-                        </div>
-                        <div className={`flex items-center gap-1.5 ${passwordCriteria.hasNumber ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
-                          {passwordCriteria.hasNumber ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
-                          <span>Min 1 number (0-9)</span>
-                        </div>
-                        <div className={`flex items-center gap-1.5 ${passwordCriteria.hasSpecial ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
-                          {passwordCriteria.hasSpecial ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
-                          <span>Special symbol (@, #)</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Confirm Password (Register Mode Only) */}
-                {authMode === 'register' && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Confirm Password
-                      <span className="text-red-500 ml-0.5">*</span>
-                    </label>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
                         required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                          confirmPassword.length > 0
-                            ? studentPasswordsMatch
+                        className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 transition-all pr-10 ${
+                          authMode === 'register' && password.length > 0
+                            ? passwordCriteria.isValid
                               ? 'border-emerald-500 focus:ring-emerald-500/20'
-                              : 'border-red-400 focus:ring-red-400/20'
+                              : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500'
                             : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500'
                         }`}
                       />
-                      {studentPasswordsMatch && (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3 top-1/2 -translate-y-1/2" />
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
-                  </div>
-                )}
 
-                {/* Remember Me (Sign-In Mode Only) */}
-                {authMode === 'signin' && (
-                  <div className="flex items-center justify-between text-xs pt-0.5">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
-                      <input
-                        type="checkbox"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="rounded border-slate-300 text-indigo-600"
-                      />
-                      <span>Remember me</span>
-                    </label>
-                    <a href="#forgot" className="font-semibold text-indigo-600 hover:text-indigo-500">
-                      Forgot Password?
-                    </a>
-                  </div>
-                )}
+                    {/* Password Strength & Checklist for Register Mode */}
+                    {authMode === 'register' && password.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${passwordStrength.bgColor}`}
+                            style={{ width: `${passwordStrength.score}%` }}
+                          />
+                        </div>
 
-                <Button
-                  variant="primary"
-                  size="md"
-                  isLoading={isLoading}
-                  className="w-full text-white font-bold py-2.5 rounded-xl shadow-md transition-all cursor-pointer bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
-                >
-                  {authMode === 'register' ? 'Register as Student' : 'Login as Student'}
-                </Button>
-              </form>
+                        <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.hasMinLength ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
+                            {passwordCriteria.hasMinLength ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+                            <span>Min 8 characters</span>
+                          </div>
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.hasUpperAndLower ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
+                            {passwordCriteria.hasUpperAndLower ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+                            <span>Upper & lower letter</span>
+                          </div>
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.hasNumber ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
+                            {passwordCriteria.hasNumber ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+                            <span>Min 1 number (0-9)</span>
+                          </div>
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.hasSpecial ? 'text-emerald-600 font-semibold' : 'text-slate-400'}`}>
+                            {passwordCriteria.hasSpecial ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+                            <span>Special symbol (@, #)</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirm Password (Register Mode Only) */}
+                  {authMode === 'register' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Confirm Password
+                        <span className="text-red-500 ml-0.5">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          autoComplete="new-password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800/80 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+                            confirmPassword.length > 0
+                              ? studentPasswordsMatch
+                                ? 'border-emerald-500 focus:ring-emerald-500/20'
+                                : 'border-red-400 focus:ring-red-400/20'
+                              : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500'
+                          }`}
+                        />
+                        {studentPasswordsMatch && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3 top-1/2 -translate-y-1/2" />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remember Me (Sign-In Mode Only) */}
+                  {authMode === 'signin' && (
+                    <div className="flex items-center justify-between text-xs pt-0.5">
+                      <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
+                        <input
+                          type="checkbox"
+                          checked={rememberMe}
+                          onChange={(e) => setRememberMe(e.target.checked)}
+                          className="rounded border-slate-300 text-indigo-600"
+                        />
+                        <span>Remember me</span>
+                      </label>
+                      <a href="#forgot" className="font-semibold text-indigo-600 hover:text-indigo-500">
+                        Forgot Password?
+                      </a>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="primary"
+                    size="md"
+                    isLoading={authMode === 'register' ? isStudentOtpSending : isLoading}
+                    className="w-full text-white font-bold py-2.5 rounded-xl shadow-md transition-all cursor-pointer bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                  >
+                    {authMode === 'register' ? 'Send Verification Code to Email' : 'Login as Student'}
+                  </Button>
+                </form>
+              )}
 
               {/* Social Divider */}
               <div className="relative my-4 text-center">

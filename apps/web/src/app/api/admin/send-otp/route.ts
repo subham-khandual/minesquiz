@@ -7,8 +7,8 @@ export async function POST(request: Request) {
   try {
     const clientIp = getClientIp(request);
 
-    // Rate Limit: Max 3 OTP generation requests per 15 minutes per IP
-    const ipLimit = checkRateLimit(`send_otp_ip_${clientIp}`, 3, 900);
+    // Rate Limit: Max 10 OTP generation requests per 15 minutes per IP
+    const ipLimit = checkRateLimit(`send_otp_ip_${clientIp}`, 10, 900);
     if (!ipLimit.allowed) {
       return NextResponse.json(
         {
@@ -44,8 +44,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Cooldown Guard: Minimum 60 seconds between consecutive OTP dispatches to the same email
-    const emailCooldown = checkCooldown(`send_otp_email_${email}`, 60);
+    // Cooldown Guard: Minimum 30 seconds between consecutive OTP dispatches to the same email
+    const emailCooldown = checkCooldown(`send_otp_email_${email}`, 30);
     if (!emailCooldown.allowed) {
       return NextResponse.json(
         {
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
     // Generate random 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Save to OTP cache (5 min TTL)
-    saveAdminOtp(email, otp, reason, 300);
+    // Save to OTP cache (10 min TTL = 600s)
+    saveAdminOtp(email, otp, reason, 600);
 
     // Send real email via Gmail SMTP
     const emailSent = await sendAdminOtpEmail(email, otp, reason);

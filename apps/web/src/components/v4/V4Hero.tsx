@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { motion } from 'motion/react';
 import {
   ShieldCheck,
@@ -80,15 +81,16 @@ export const V4Hero: React.FC<V4HeroProps> = ({ onStartExam, onExploreFeatures }
                 <ArrowRight className="w-5 h-5 ml-1" />
               </motion.button>
 
-              <motion.a
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                href="#features"
-                onClick={onExploreFeatures}
-                className="font-poppins inline-flex items-center gap-2 px-7 py-4 text-base font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-xs hover:border-purple-300 transition-all cursor-pointer"
-              >
-                <span>Explore Features</span>
-              </motion.a>
+              <Link href="/features" prefetch={true} className="inline-block">
+                <motion.div
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onExploreFeatures}
+                  className="font-poppins inline-flex items-center gap-2 px-7 py-4 text-base font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-xs hover:border-purple-300 transition-all cursor-pointer"
+                >
+                  <span>Explore Features</span>
+                </motion.div>
+              </Link>
             </motion.div>
 
             {/* Trust Metrics Pill Strip */}

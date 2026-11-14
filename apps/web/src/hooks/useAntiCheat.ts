@@ -47,7 +47,14 @@ export function useAntiCheat({ enabled, onViolation }: AntiCheatOptions) {
       handleViolation('Clipboard Action Blocked', 'Pasting into the exam is forbidden.');
     };
 
-    // 3. Block devtools, inspect element, print, and view source shortcuts
+    // 3. Block mouse drag and text selection dragging
+    const handleDragStart = (e: DragEvent) => {
+      e.preventDefault();
+      handleViolation('Drag Action Blocked', 'Dragging exam text is prohibited.');
+      return false;
+    };
+
+    // 4. Block devtools, inspect element, print, and view source shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
       // F12 key (DevTools)
       if (e.key === 'F12' || e.keyCode === 123) {
@@ -84,18 +91,65 @@ export function useAntiCheat({ enabled, onViolation }: AntiCheatOptions) {
       }
     };
 
+    // 5. Track mouse leaving the window boundary (Dual-Monitor defense)
+    const handleMouseLeave = (e: MouseEvent) => {
+      if (e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+        handleViolation('Cursor Left Window', 'Mouse cursor moved outside the active examination window.');
+      }
+    };
+
+    // 6. Active DevTools Viewport Delta Detection (detects docked inspect panels)
+    const checkDevToolsDimensions = () => {
+      const widthThreshold = window.outerWidth - window.innerWidth > 160;
+      const heightThreshold = window.outerHeight - window.innerHeight > 160;
+      if (widthThreshold || heightThreshold) {
+        handleViolation('DevTools Viewport Detected', 'Docked developer inspection window or side panel detected.');
+      }
+    };
+
+    // 7. Virtual Camera Driver Detection (Blocks OBS, ManyCam, v4l2loopback, DroidCam)
+    const checkVirtualWebcam = async () => {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const blacklistedDrivers = ['obs', 'virtual', 'manycam', 'fake', 'v4l2loopback', 'droidcam', 'camo', 'splitcam', 'e2esoft'];
+          const hasVirtualCam = devices.some((device) => {
+            if (device.kind === 'videoinput') {
+              const label = device.label.toLowerCase();
+              return blacklistedDrivers.some((driver) => label.includes(driver));
+            }
+            return false;
+          });
+
+          if (hasVirtualCam) {
+            handleViolation('Virtual Camera Blocked', 'Virtual webcam driver (OBS/ManyCam) detected. Please connect a physical camera.');
+          }
+        }
+      } catch (camErr) {
+        // Ignore un-enumerated permissions
+      }
+    };
+
+    checkVirtualWebcam();
+    const devToolsInterval = setInterval(checkDevToolsDimensions, 2500);
+
     window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('copy', handleCopy);
     window.addEventListener('cut', handleCut);
     window.addEventListener('paste', handlePaste);
+    window.addEventListener('dragstart', handleDragStart);
     window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
+      clearInterval(devToolsInterval);
       window.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('copy', handleCopy);
       window.removeEventListener('cut', handleCut);
       window.removeEventListener('paste', handlePaste);
+      window.removeEventListener('dragstart', handleDragStart);
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [enabled, handleViolation]);
 }

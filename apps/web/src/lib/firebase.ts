@@ -24,10 +24,20 @@ const firebaseConfig = {
 export const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 // Safe Auth Helpers
 export const signInWithGoogle = async () => {
-  return await signInWithPopup(auth, googleProvider);
+  try {
+    return await signInWithPopup(auth, googleProvider);
+  } catch (err: any) {
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+      console.warn('[Firebase Auth] Popup closed or cancelled by user.');
+    }
+    throw err;
+  }
 };
 
 export const signInWithEmail = async (email: string, pass: string) => {

@@ -97,6 +97,16 @@ export class AttemptService {
     if (!attempt) throw new Error('Attempt not found');
     if (attempt.status !== 'in-progress') throw new Error('Attempt is already closed');
 
+    // Strict Server-Side Time Window Enforcement (30s network grace period)
+    if (attempt.endTime) {
+      const gracePeriodMs = 30 * 1000;
+      if (Date.now() > attempt.endTime.getTime() + gracePeriodMs) {
+        attempt.status = 'expired';
+        await attempt.save();
+        throw new Error('EXAM_TIME_EXPIRED: The examination time limit has ended.');
+      }
+    }
+
     const index = attempt.answers.findIndex((a) => a.questionId === answer.questionId);
     if (index >= 0) {
       attempt.answers[index] = {

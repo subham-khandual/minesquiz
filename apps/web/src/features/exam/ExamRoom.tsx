@@ -7,6 +7,7 @@ import { useProctorStore } from '../../stores/useProctorStore';
 import { useFullscreen } from '../../hooks/useFullscreen';
 import { useTabVisibility } from '../../hooks/useTabVisibility';
 import { useAntiCheat } from '../../hooks/useAntiCheat';
+import { useNoiseDetector } from '../../hooks/useNoiseDetector';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { QuizTimer } from '../../components/QuizTimer';
 import { WebcamProctorView } from '../../components/WebcamProctorView';
@@ -76,6 +77,15 @@ export const ExamRoom: React.FC = () => {
   // Anti-Cheat: Context menu, clipboard, and DevTools blocker hook (Only for Live Proctored Exams)
   useAntiCheat({
     enabled: isLiveProctored && !isTerminated,
+  });
+
+  // Audio Proctoring: Detect excessive room noise, speech or whispering
+  useNoiseDetector({
+    enabled: isLiveProctored && !isTerminated,
+    noiseThresholdDb: 60,
+    onNoiseViolation: (dB) => {
+      reportViolation('audio_detected', `Elevated ambient noise (${dB} dB) or speech detected in room.`);
+    },
   });
 
   // Network Guard: Monitor candidate internet connectivity
@@ -419,9 +429,13 @@ export const ExamRoom: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Actual Question Text - Bold & Enlarged for Mobile and Desktop */}
-                <div className="my-5 sm:my-7">
-                  <h2 className="text-xl sm:text-2xl font-poppins font-bold text-white leading-relaxed sm:leading-snug tracking-tight">
+                {/* Actual Question Text - Bold & Enlarged for Mobile and Desktop with Copy-Protection */}
+                <div
+                  className="my-5 sm:my-7 select-none"
+                  onContextMenu={(e) => e.preventDefault()}
+                  onCopy={(e) => e.preventDefault()}
+                >
+                  <h2 className="text-xl sm:text-2xl font-poppins font-bold text-white leading-relaxed sm:leading-snug tracking-tight select-none">
                     {currentQuestion.text}
                   </h2>
                 </div>

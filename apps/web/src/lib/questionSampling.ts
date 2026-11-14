@@ -20,8 +20,8 @@ export const MINING_SUBJECTS: MiningSubject[] = [
     shortName: 'Full Comprehensive Mock',
     description: 'Complete cross-domain assessment spanning Coal Mines Regulations, Ventilation, Strata Control, Opencast, Explosives, and Rescue.',
     durationMinutes: 60,
-    totalMarks: 100,
-    passingMarks: 60,
+    totalMarks: 30,
+    passingMarks: 18,
     questionsCount: 30,
     iconName: 'Trophy',
   },
@@ -180,7 +180,7 @@ export function generateCandidateExamSession({
       options: shuffledOptions,
     });
 
-    // Strip correctOptionIds for client-side zero-knowledge delivery
+    // Strip correctOptionIds and explanation for client-side zero-knowledge delivery in live exam
     const clientSafeQ: Question = {
       id: origQ.id,
       quizId: subject.code,
@@ -193,7 +193,7 @@ export function generateCandidateExamSession({
       })),
       marks: origQ.marks,
       negativeMarks: origQ.negativeMarks,
-      explanation: origQ.explanation,
+      explanation: mode === 'mock' ? origQ.explanation : undefined,
     };
 
     clientQuestions.push(clientSafeQ);

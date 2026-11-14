@@ -61,10 +61,10 @@ export default function AdminDashboardPage() {
   // Generate candidate detailed answer sheet based on subject and percentage
   const candidateAnswerSheet = useMemo(() => {
     if (!selectedCandidate) return [];
-    const pool = MINING_STATUTORY_QUESTIONS.filter(
+    const pool = questionsList.filter(
       (q) => q.subjectCode === selectedCandidate.subjectCode || selectedCandidate.subjectCode === 'MIN-ALL'
     );
-    const sample = pool.length > 0 ? pool.slice(0, 8) : MINING_STATUTORY_QUESTIONS.slice(0, 8);
+    const sample = pool.length > 0 ? pool.slice(0, 8) : questionsList.slice(0, 8);
 
     return sample.map((q, idx) => {
       const isCorrect = idx < Math.round((sample.length * selectedCandidate.percentage) / 100);
@@ -83,7 +83,7 @@ export default function AdminDashboardPage() {
         explanation: q.explanation,
       };
     });
-  }, [selectedCandidate]);
+  }, [selectedCandidate, questionsList]);
 
   // Exam Settings state
   const [passingPercentage, setPassingPercentage] = useState<number>(60);
@@ -794,7 +794,7 @@ export default function AdminDashboardPage() {
               className="space-y-6 text-left"
             >
               {/* Question Bank Toolbar */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="relative flex-1">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
@@ -802,7 +802,7 @@ export default function AdminDashboardPage() {
                     value={questionSearchQuery}
                     onChange={(e) => setQuestionSearchQuery(e.target.value)}
                     placeholder="Search statutory questions by keywords..."
-                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-inter text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm sm:text-base font-inter text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:bg-white"
                   />
                 </div>
 
@@ -810,7 +810,7 @@ export default function AdminDashboardPage() {
                   <select
                     value={selectedQuestionSubject}
                     onChange={(e) => setSelectedQuestionSubject(e.target.value)}
-                    className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-inter font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-600 cursor-pointer"
+                    className="px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-inter font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-600 cursor-pointer"
                   >
                     <option value="all">All Mining Subjects ({questionsList.length})</option>
                     {MINING_SUBJECTS.map((s) => (
@@ -823,57 +823,66 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Questions List */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {filteredQuestions.map((q, idx) => (
                   <div
                     key={q.id}
-                    className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-xs hover:border-slate-300 transition-all space-y-3"
+                    className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs hover:border-slate-300 transition-all space-y-4"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-semibold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs sm:text-sm font-mono font-bold text-slate-800 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
                           {q.subjectCode} • Q{idx + 1}
                         </span>
-                        <span className="text-xs text-slate-500 font-medium">
-                          Marks: {q.marks} | Negative: {q.negativeMarks}
+                        <span className="text-xs sm:text-sm text-slate-600 font-semibold bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
+                          +{q.marks || 2} Marks | Negative: {q.negativeMarks || 0}
                         </span>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => setEditingQuestion(q)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-inter font-semibold transition-all cursor-pointer"
+                        className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs sm:text-sm font-inter font-bold shadow-xs transition-all cursor-pointer"
                       >
-                        <Edit className="w-3.5 h-3.5 text-slate-600" />
+                        <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         <span>Edit Question</span>
                       </button>
                     </div>
 
-                    <h4 className="font-inter text-sm font-semibold text-slate-900 leading-snug">
+                    <h4 className="font-poppins text-base sm:text-lg font-bold text-slate-900 leading-relaxed sm:leading-snug">
                       {q.text}
                     </h4>
 
                     {/* Options Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 pt-1">
                       {q.options.map((opt, optIdx) => {
                         const isCorrect = q.correctOptionIds?.includes(opt.id);
                         return (
                           <div
                             key={opt.id}
-                            className={`p-2.5 rounded-lg border text-xs font-inter flex items-center justify-between ${
+                            className={`p-3 sm:p-3.5 rounded-xl border text-sm sm:text-base font-inter flex items-center justify-between gap-3 transition-colors ${
                               isCorrect
-                                ? 'bg-emerald-50/70 border-emerald-300 text-emerald-900 font-semibold'
-                                : 'bg-slate-50 border-slate-200 text-slate-700'
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-semibold ring-1 ring-emerald-200'
+                                : 'bg-slate-50/80 border-slate-200 text-slate-800'
                             }`}
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-white border border-slate-300 text-xs font-bold flex items-center justify-center shrink-0">
+                            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                              <span
+                                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border text-xs sm:text-sm font-poppins font-black flex items-center justify-center shrink-0 ${
+                                  isCorrect
+                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                    : 'bg-white text-slate-700 border-slate-300'
+                                }`}
+                              >
                                 {String.fromCharCode(65 + optIdx)}
                               </span>
-                              <span>{opt.text}</span>
+                              <span className="leading-snug break-words">{opt.text}</span>
                             </div>
                             {isCorrect && (
-                              <Check className="w-4 h-4 text-emerald-600 shrink-0 ml-1" />
+                              <span className="inline-flex items-center gap-1 shrink-0 text-emerald-700 text-xs sm:text-sm font-bold bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                                <Check className="w-4 h-4 text-emerald-600" />
+                                <span className="hidden sm:inline">Correct</span>
+                              </span>
                             )}
                           </div>
                         );
@@ -881,8 +890,8 @@ export default function AdminDashboardPage() {
                     </div>
 
                     {q.explanation && (
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-inter text-slate-500">
-                        <strong className="text-slate-700">Statutory Reference:</strong> {q.explanation}
+                      <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-inter text-slate-600 leading-relaxed">
+                        <strong className="text-slate-900 font-semibold">Statutory Reference:</strong> {q.explanation}
                       </div>
                     )}
                   </div>
@@ -990,64 +999,94 @@ export default function AdminDashboardPage() {
       {/* ========================================================= */}
       <AnimatePresence>
         {editingQuestion && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              className="bg-white rounded-2xl border border-slate-200 max-w-xl w-full p-6 shadow-2xl relative text-left max-h-[90dvh] overflow-y-auto"
+              className="bg-white rounded-3xl border border-slate-200 max-w-2xl sm:max-w-3xl w-full p-5 sm:p-8 shadow-2xl relative text-left max-h-[92dvh] overflow-y-auto"
             >
               <button
                 onClick={() => setEditingQuestion(null)}
-                className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                title="Close modal"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
 
-              <h3 className="font-poppins text-lg font-bold text-slate-900 mb-1">
-                Edit Statutory Question ({editingQuestion.subjectCode})
-              </h3>
-              <p className="font-inter text-xs text-slate-500 mb-4">
-                Modify statutory question wording, answer options, or legal explanation.
-              </p>
+              <div className="pr-10 mb-5 sm:mb-6">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-xs sm:text-sm font-mono font-bold mb-2">
+                  <span>Paper: {editingQuestion.subjectCode}</span>
+                  <span>•</span>
+                  <span>Marks: +{editingQuestion.marks || 2}</span>
+                </div>
+                <h3 className="font-poppins text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
+                  Edit Statutory Question
+                </h3>
+                <p className="font-inter text-xs sm:text-sm text-slate-500 mt-1">
+                  Modify question statement, answer options, and statutory explanation. Changes reflect instantly for both mobile and desktop testing.
+                </p>
+              </div>
 
-              <div className="space-y-4 font-inter">
+              <div className="space-y-5 font-inter">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Question Statement:
+                  <label className="block font-poppins text-xs sm:text-sm font-bold text-slate-800 mb-2">
+                    Question Statement (Mobile & Desktop Readable):
                   </label>
                   <textarea
-                    rows={3}
+                    rows={4}
                     value={editingQuestion.text}
                     onChange={(e) =>
                       setEditingQuestion({ ...editingQuestion, text: e.target.value })
                     }
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    placeholder="Enter full question text..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-3.5 sm:p-4 text-base sm:text-lg font-inter font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:bg-white leading-relaxed transition-all"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Answer Options (Select radio to designate correct key):
-                  </label>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-poppins text-xs sm:text-sm font-bold text-slate-800">
+                      Answer Options (Select radio to designate correct key):
+                    </label>
+                    <span className="text-xs font-semibold text-slate-500 hidden sm:inline">
+                      Click radio circle to mark correct key
+                    </span>
+                  </div>
+
                   {editingQuestion.options.map((opt, idx) => {
                     const isCorrect = editingQuestion.correctOptionIds?.includes(opt.id);
                     return (
-                      <div key={opt.id} className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="correctOption"
-                          checked={isCorrect}
-                          onChange={() =>
-                            setEditingQuestion({
-                              ...editingQuestion,
-                              correctOptionIds: [opt.id],
-                            })
-                          }
-                          className="w-4 h-4 text-purple-600 cursor-pointer"
-                        />
-                        <span className="w-6 text-xs font-bold text-slate-500 font-mono">
-                          {String.fromCharCode(65 + idx)}:
+                      <div
+                        key={opt.id}
+                        className={`flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-2xl border transition-all ${
+                          isCorrect
+                            ? 'bg-purple-50/70 border-purple-300 ring-2 ring-purple-500/20 shadow-xs'
+                            : 'bg-slate-50/80 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <label className="cursor-pointer flex items-center justify-center p-1.5 touch-manipulation">
+                          <input
+                            type="radio"
+                            name="correctOption"
+                            checked={isCorrect}
+                            onChange={() =>
+                              setEditingQuestion({
+                                ...editingQuestion,
+                                correctOptionIds: [opt.id],
+                              })
+                            }
+                            className="w-5 h-5 text-purple-600 accent-purple-600 cursor-pointer"
+                          />
+                        </label>
+                        <span
+                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-poppins font-black text-xs sm:text-sm flex items-center justify-center shrink-0 border transition-colors ${
+                            isCorrect
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          {String.fromCharCode(65 + idx)}
                         </span>
                         <input
                           type="text"
@@ -1058,7 +1097,8 @@ export default function AdminDashboardPage() {
                             );
                             setEditingQuestion({ ...editingQuestion, options: newOpts });
                           }}
-                          className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                          placeholder={`Enter Option ${String.fromCharCode(65 + idx)} text...`}
+                          className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600 transition-all placeholder:text-slate-400"
                         />
                       </div>
                     );
@@ -1066,34 +1106,35 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Statutory Explanation:
+                  <label className="block font-poppins text-xs sm:text-sm font-bold text-slate-800 mb-2">
+                    Statutory Explanation & Regulatory Reference:
                   </label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={2}
                     value={editingQuestion.explanation || ''}
                     onChange={(e) =>
                       setEditingQuestion({ ...editingQuestion, explanation: e.target.value })
                     }
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    placeholder="e.g. As per Regulation 127 of Coal Mines Regulations 2017..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-3.5 sm:p-4 text-sm sm:text-base font-inter font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:bg-white leading-relaxed transition-all placeholder:text-slate-400"
                   />
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-2.5">
+              <div className="mt-7 pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end items-stretch sm:items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setEditingQuestion(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-inter font-semibold hover:bg-slate-50 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-sm font-inter font-semibold hover:bg-slate-50 active:scale-95 transition-all cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSaveEditedQuestion(editingQuestion)}
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-inter font-bold shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-sm sm:text-base font-inter font-bold shadow-md shadow-purple-600/20 transition-all cursor-pointer text-center"
                 >
-                  Save Question
+                  Save Question Changes
                 </button>
               </div>
             </motion.div>
@@ -1106,36 +1147,37 @@ export default function AdminDashboardPage() {
       {/* ========================================================= */}
       <AnimatePresence>
         {selectedCandidate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 8 }}
               transition={{ duration: 0.15 }}
-              className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl relative text-left max-h-[90dvh] overflow-y-auto"
+              className="bg-white rounded-3xl border border-slate-200 max-w-2xl sm:max-w-3xl w-full p-5 sm:p-8 shadow-2xl relative text-left max-h-[92dvh] overflow-y-auto"
             >
               <button
                 onClick={() => setSelectedCandidate(null)}
-                className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                title="Close modal"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center shrink-0 border border-slate-200 font-poppins font-bold text-sm">
+              <div className="flex items-center gap-3.5 mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0 border border-purple-200 font-poppins font-black text-base shadow-xs">
                   {selectedCandidate.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="font-poppins text-lg font-bold text-slate-900 leading-tight">
+                  <h3 className="font-poppins text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
                     {selectedCandidate.name}
                   </h3>
-                  <p className="font-mono text-xs text-slate-500">
+                  <p className="font-mono text-xs sm:text-sm text-slate-500">
                     {selectedCandidate.email}
                   </p>
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 mb-5 text-xs font-inter space-y-1">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 mb-5 text-xs sm:text-sm font-inter space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Subject:</span>
                   <span className="font-semibold text-slate-800 text-right">
@@ -1157,7 +1199,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* 3 Summary Badges */}
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80 mb-5 text-sm font-inter">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200/80 mb-5 text-sm font-inter">
                 <div>
                   <span className="text-slate-500 text-xs block">Paper Reference:</span>
                   <span className="font-semibold text-slate-900 truncate block">
@@ -1193,7 +1235,7 @@ export default function AdminDashboardPage() {
                 <button
                   type="button"
                   onClick={() => setModalTab('answers')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
                     modalTab === 'answers'
                       ? 'bg-purple-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -1204,7 +1246,7 @@ export default function AdminDashboardPage() {
                 <button
                   type="button"
                   onClick={() => setModalTab('telemetry')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
                     modalTab === 'telemetry'
                       ? 'bg-purple-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -1216,49 +1258,49 @@ export default function AdminDashboardPage() {
 
               {/* Tab 1 Content: Full Candidate Answer Sheet */}
               {modalTab === 'answers' && (
-                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                <div className="space-y-3.5 max-h-96 overflow-y-auto pr-1">
                   {candidateAnswerSheet.map((item) => (
                     <div
                       key={item.id}
-                      className={`p-4 rounded-xl border text-sm font-inter space-y-2 ${
+                      className={`p-4 sm:p-5 rounded-2xl border text-sm font-inter space-y-3 ${
                         item.isCorrect
                           ? 'bg-emerald-50/50 border-emerald-200 text-slate-800'
                           : 'bg-rose-50/50 border-rose-200 text-slate-800'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-poppins font-bold text-slate-900">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="font-poppins text-sm sm:text-base font-bold text-slate-900 leading-snug">
                           Q{item.qNum}. {item.questionText}
                         </span>
                         <span
-                          className={`font-mono text-xs font-bold px-2.5 py-1 rounded shrink-0 ${
+                          className={`font-mono text-xs sm:text-sm font-bold px-3 py-1 rounded-lg shrink-0 ${
                             item.isCorrect
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-rose-100 text-rose-800 border border-rose-200'
                           }`}
                         >
                           {item.isCorrect ? `+${item.marksAwarded} Marks` : `${item.marksAwarded} Marks`}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                        <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-                          <span className="text-slate-400 block font-medium">Candidate Selected Choice:</span>
-                          <span className={`font-semibold ${item.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs sm:text-sm pt-1">
+                        <div className="p-3 rounded-xl bg-white border border-slate-200">
+                          <span className="text-slate-500 block font-medium mb-0.5">Candidate Selected Choice:</span>
+                          <span className={`font-semibold text-sm ${item.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
                             {item.candidateChoice}
                           </span>
                         </div>
-                        <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-                          <span className="text-slate-400 block font-medium">Official Correct Key:</span>
-                          <span className="font-semibold text-emerald-700">
+                        <div className="p-3 rounded-xl bg-white border border-slate-200">
+                          <span className="text-slate-500 block font-medium mb-0.5">Official Correct Key:</span>
+                          <span className="font-semibold text-sm text-emerald-700">
                             {item.correctChoice}
                           </span>
                         </div>
                       </div>
 
                       {item.explanation && (
-                        <div className="text-xs text-slate-500 pt-1 leading-relaxed">
-                          <strong className="text-slate-700">DGMS Statutory Reference:</strong> {item.explanation}
+                        <div className="p-3 rounded-xl bg-white/70 border border-slate-200/80 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                          <strong className="text-slate-900 font-semibold">DGMS Statutory Reference:</strong> {item.explanation}
                         </div>
                       )}
                     </div>

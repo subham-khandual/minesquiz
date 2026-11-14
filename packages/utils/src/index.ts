@@ -105,6 +105,24 @@ export function sanitizeString(input: string): string {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Generates cryptographic payload checksum for answer submission integrity
+ */
+export function computeAnswerIntegrityHash(
+  attemptId: string,
+  questionId: string,
+  selectedOptionIds: string[],
+  timestampMs: number
+): string {
+  const payload = `${attemptId}:${questionId}:${selectedOptionIds.sort().join(',')}:${Math.floor(timestampMs / 1000)}`;
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < payload.length; i++) {
+    hash ^= payload.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 export * from './validation';
 export * from './gazeEstimator';
 

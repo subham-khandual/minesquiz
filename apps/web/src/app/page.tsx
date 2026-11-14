@@ -179,7 +179,7 @@ export default function HomePage() {
         <V4Hero
           onStartExam={handleScrollToExam}
           onExploreFeatures={() => {
-            document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+            router.push('/features');
           }}
         />
 
