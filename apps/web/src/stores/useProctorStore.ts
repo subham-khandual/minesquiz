@@ -24,9 +24,9 @@ interface ProctorState {
 export const useProctorStore = create<ProctorState>((set, get) => ({
   isCameraActive: false,
   violationsCount: 0,
-  maxAllowedViolations: 5,
+  maxAllowedViolations: 10,
   faceAbsenceCount: 0,
-  maxAllowedFaceAbsences: 1,
+  maxAllowedFaceAbsences: 5,
   activeAlert: null,
   activeAlertSeverity: undefined,
   recentViolations: [],
@@ -70,13 +70,13 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
     const isTerminated = newAbsenceCount > maxAllowedFaceAbsences;
 
     const alertMessage = isTerminated
-      ? 'Examination terminated: Candidate left camera view (Max 1 chance exceeded).'
-      : (message || 'CRITICAL WARNING (Chance 1 of 1): Face not visible in camera frame! Please return immediately.');
+      ? `Examination terminated: Face not visible in camera feed (${maxAllowedFaceAbsences} chances exceeded).`
+      : (message || `Notice: Face not clearly centered. Please face your camera (${newAbsenceCount} of ${maxAllowedFaceAbsences}).`);
 
     set({
       faceAbsenceCount: newAbsenceCount,
       activeAlert: alertMessage,
-      activeAlertSeverity: 'critical',
+      activeAlertSeverity: isTerminated ? 'critical' : 'warning',
       isTerminated,
       recentViolations: [
         { type: 'no_face', message: alertMessage, timestamp: new Date().toLocaleTimeString() },

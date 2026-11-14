@@ -147,10 +147,10 @@ export function useFaceDetector({
                 setIsLookingAway(true);
                 setFaceBox(null);
 
-                // 8 consecutive frames = ~3.2 seconds without face before single chance warning
-                if (consecutiveNoFaceRef.current >= 8) {
+                // 25 consecutive frames = ~10.0 seconds without face before advisory warning
+                if (consecutiveNoFaceRef.current >= 25) {
                   handleFaceAbsence(
-                    'No face visible in camera frame. You have 1 chance remaining. Please face your webcam.'
+                    'No face visible in camera frame. Please keep your face centered towards the camera.'
                   );
                 }
                 return;
@@ -212,12 +212,12 @@ export function useFaceDetector({
               setYaw(calcYaw);
               setPitch(calcPitch);
 
-              // Generous 40-degree Yaw and 35-degree Pitch tolerance for normal wide-screen question reading
+              // Generous 55-degree Yaw and 55-degree Pitch tolerance for comfortable mobile & desktop reading
               let currentStatus: PoseStatus = 'center';
-              if (calcYaw < -40) currentStatus = 'left';
-              else if (calcYaw > 40) currentStatus = 'right';
-              else if (calcPitch > 35) currentStatus = 'down';
-              else if (calcPitch < -35) currentStatus = 'up';
+              if (calcYaw < -55) currentStatus = 'left';
+              else if (calcYaw > 55) currentStatus = 'right';
+              else if (calcPitch > 55) currentStatus = 'down';
+              else if (calcPitch < -45) currentStatus = 'up';
 
               setPoseStatus(currentStatus);
 
@@ -229,8 +229,8 @@ export function useFaceDetector({
                 consecutiveNoFaceRef.current = 0;
                 consecutiveMultipleFacesRef.current = 0;
 
-                // 7 frames = ~2.8s continuous turned pose
-                if (consecutiveLookingAwayRef.current >= 7) {
+                // 18 frames = ~7.2s continuous turned pose
+                if (consecutiveLookingAwayRef.current >= 18) {
                   handleViolation(
                     'looking_away',
                     `Candidate head pose turned away from display (${currentStatus}: ${calcYaw}°).`
@@ -315,10 +315,10 @@ export function useFaceDetector({
           setIsLookingAway(true);
           setFaceBox(null);
 
-          // 8 frames = ~3.2 seconds without face before single chance warning
-          if (consecutiveNoFaceRef.current >= 8) {
+          // 25 frames = ~10.0 seconds without face before advisory notice
+          if (consecutiveNoFaceRef.current >= 25) {
             handleFaceAbsence(
-              'No candidate face detected in video stream. You have 1 chance remaining. Please face your webcam.'
+              'No candidate face detected in video stream. Please ensure your camera view is unobstructed.'
             );
           }
           return;
@@ -356,12 +356,12 @@ export function useFaceDetector({
         setYaw(calcYaw);
         setPitch(calcPitch);
 
-        // Generous 40-degree Yaw and 35-degree Pitch tolerance for normal wide-screen question reading
+        // Generous 55-degree Yaw and 55-degree Pitch tolerance for normal mobile reading posture
         let currentStatus: PoseStatus = 'center';
-        if (calcYaw < -40) currentStatus = 'left';
-        else if (calcYaw > 40) currentStatus = 'right';
-        else if (calcPitch > 35) currentStatus = 'down';
-        else if (calcPitch < -35) currentStatus = 'up';
+        if (calcYaw < -55) currentStatus = 'left';
+        else if (calcYaw > 55) currentStatus = 'right';
+        else if (calcPitch > 55) currentStatus = 'down';
+        else if (calcPitch < -45) currentStatus = 'up';
 
         setPoseStatus(currentStatus);
 
@@ -371,8 +371,8 @@ export function useFaceDetector({
         if (turnedAway) {
           consecutiveLookingAwayRef.current += 1;
 
-          // 7 frames = ~2.8s continuous turned pose
-          if (consecutiveLookingAwayRef.current >= 7) {
+          // 18 frames = ~7.2s continuous turned pose
+          if (consecutiveLookingAwayRef.current >= 18) {
             handleViolation(
               'looking_away',
               `Candidate head turned away from screen (${currentStatus}: ${calcYaw}°).`

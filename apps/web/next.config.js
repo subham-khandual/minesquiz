@@ -10,6 +10,9 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  images: {
+    unoptimized: true,
+  },
   experimental: {
     optimizePackageImports: ['lucide-react', 'motion/react', 'gsap'],
   },

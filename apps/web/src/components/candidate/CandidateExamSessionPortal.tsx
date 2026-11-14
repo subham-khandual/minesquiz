@@ -712,20 +712,20 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
                 </div>
               </div>
 
-              {/* Helpful Callout to Instructions */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-rose-50/70 border border-rose-200/80 flex items-center justify-between gap-3">
+              {/* Helpful Guidance Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-blue-50/80 border border-blue-200/80 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
-                  <p className="text-xs sm:text-sm font-inter text-rose-900 leading-relaxed">
-                    Live exam enforces a <strong>strict 3-strike limit</strong>. Review the code of conduct in the <strong>Instructions</strong> tab.
+                  <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
+                  <p className="text-xs sm:text-sm font-inter text-blue-900 leading-relaxed">
+                    AI Proctoring monitors face alignment and prevents app switching for fair assessment.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveTab('instructions')}
-                  className="shrink-0 text-xs font-semibold text-rose-700 hover:text-rose-900 underline cursor-pointer"
+                  className="shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900 underline cursor-pointer"
                 >
-                  View Rules
+                  View Guidelines
                 </button>
               </div>
 

@@ -138,6 +138,7 @@ export const ExamInstructionsView: React.FC<ExamInstructionsViewProps> = ({
                 width={360}
                 height={278}
                 priority
+                unoptimized
                 className="w-full h-auto max-h-[240px] object-contain drop-shadow-lg"
               />
             </div>

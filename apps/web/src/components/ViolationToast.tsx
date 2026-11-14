@@ -48,7 +48,7 @@ export const ViolationToast: React.FC = () => {
                 </span>
               ) : faceAbsenceCount > 0 ? (
                 <span className="bg-rose-700/80 text-rose-100 px-2 py-0.5 rounded">
-                  Face Absence: {faceAbsenceCount} of {maxAllowedFaceAbsences} allowed chance
+                  Face Absence: {faceAbsenceCount} of {maxAllowedFaceAbsences} allowed
                 </span>
               ) : (
                 <span className="bg-rose-700/60 text-rose-200 px-2 py-0.5 rounded">

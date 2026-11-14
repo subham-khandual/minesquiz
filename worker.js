@@ -36,6 +36,18 @@ export default {
         }
       }
 
+      // Handle Next.js Image Optimization route statically by proxying to the raw asset
+      if (pathname.startsWith('/_next/image')) {
+        const rawImageUrl = url.searchParams.get('url');
+        if (rawImageUrl) {
+          const targetUrl = new URL(rawImageUrl, request.url);
+          const assetRes = await env.ASSETS.fetch(new Request(targetUrl.toString(), request));
+          if (assetRes.status === 200) {
+            return assetRes;
+          }
+        }
+      }
+
       // 2. Direct asset request (exact file matches e.g. /_next/static/..., /images/..., robots.txt)
       let response = await env.ASSETS.fetch(request);
       if (response.status !== 404) {

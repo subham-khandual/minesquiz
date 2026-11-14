@@ -356,7 +356,7 @@ export const ExamRoom: React.FC = () => {
           <h2 className="text-2xl font-black text-white mb-2">Examination Terminated</h2>
           <p className="text-rose-200 max-w-md text-sm mb-6">
             {activeAlert || (faceAbsenceCount > maxAllowedFaceAbsences
-              ? 'Your examination has been automatically terminated because candidate left camera view (Max 1 chance exceeded).'
+              ? `Your examination has been automatically terminated because candidate left camera view (${maxAllowedFaceAbsences} chances exceeded).`
               : `Your examination has been automatically terminated due to excessive proctoring violations (${violationsCount} of ${maxAllowedViolations} maximum permitted).`)}
           </p>
           <Button
