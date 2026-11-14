@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack -p 3001",
     "dev:webpack": "next dev -p 3001",
     "build": "next build",
-    "postbuild": "node -e \"const fs = require('fs'); const p = require('path').join(__dirname, '.next', 'cache'); if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });\"",
+    "postbuild": "node ../../scripts/prepare-cloudflare-dist.js",
     "start": "next start -p 3001",
     "deploy": "wrangler pages deploy .next --project-name=minesquiz",
     "lint": "next lint"
