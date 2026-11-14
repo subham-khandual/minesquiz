@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyStudentOtp } from '../../../../../lib/studentAuthStore';
+import { verifyStudentOtp, saveCandidateAccount } from '../../../../../lib/studentAuthStore';
 import { getClientIp, checkRateLimit } from '../../../../../lib/rateLimit';
 
 export async function POST(request: Request) {
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const email = body?.email ? String(body.email).trim().toLowerCase() : '';
     const otp = body?.otp ? String(body.otp).trim() : '';
+    const password = body?.password ? String(body.password) : '';
 
     if (!email || !otp) {
       return NextResponse.json(
@@ -42,12 +43,30 @@ export async function POST(request: Request) {
       );
     }
 
+    // If password provided during initial registration, store salted hash account
+    let candidate;
+    if (password && password.length >= 8) {
+      const saveRes = saveCandidateAccount(email, result.fullName || '', password);
+      candidate = saveRes.candidate;
+    }
+
+    const token = 'cand-jwt-' + Buffer.from(email + ':' + Date.now()).toString('base64');
+
     return NextResponse.json({
       success: true,
       message: 'Candidate email successfully verified.',
       email,
       fullName: result.fullName,
       deviceTelemetry: result.deviceTelemetry,
+      candidate: candidate
+        ? {
+            id: candidate.id,
+            email: candidate.email,
+            displayName: candidate.fullName,
+            role: 'student',
+          }
+        : undefined,
+      token,
     });
   } catch (error: any) {
     console.error('API /api/auth/student/verify-otp error:', error);

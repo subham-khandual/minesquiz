@@ -135,3 +135,67 @@ export async function sendCandidateRegistrationOtpEmail(
     return false;
   }
 }
+
+/**
+ * Sends a candidate password reset OTP email with 10-minute validity and device beacon
+ */
+export async function sendCandidatePasswordResetOtpEmail(
+  toEmail: string,
+  candidateName: string,
+  otp: string,
+  beaconToken?: string
+): Promise<boolean> {
+  const transporter = createGmailTransporter();
+  const user = process.env.SMTP_USER || process.env.SMTP_EMAIL || 'assistantsayraa@gmail.com';
+  const fromHeader = process.env.SMTP_FROM || `"Mines Quiz Examination Board" <${user}>`;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://minesquiz.com';
+
+  const mailOptions = {
+    from: fromHeader,
+    to: toEmail,
+    subject: `🔐 Mines Quiz Password Reset Verification Code: ${otp}`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #4338ca; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">Mines<span style="color: #6d28d9;">Quiz</span></h2>
+          <p style="color: #64748b; font-size: 13px; margin: 6px 0 0 0;">Candidate Account Password Recovery</p>
+        </div>
+
+        <p style="color: #334155; font-size: 14px; margin: 0 0 16px 0;">
+          Hello <strong>${candidateName || 'Candidate'}</strong>,
+        </p>
+
+        <p style="color: #475569; font-size: 13px; line-height: 1.6; margin: 0 0 20px 0;">
+          We received a request to reset the password for your Mines Quiz candidate account (${toEmail}). Please enter the 6-digit verification code below to authorize your password reset:
+        </p>
+
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 24px;">
+          <p style="color: #991b1b; font-size: 14px; margin: 0 0 12px 0; font-weight: 600;">Your Password Reset Code:</p>
+          <div style="font-size: 38px; font-weight: 900; letter-spacing: 8px; color: #dc2626; padding: 12px 0;">
+            ${otp}
+          </div>
+          <p style="color: #b91c1c; font-size: 12px; margin: 8px 0 0 0;">Code expires in 10 minutes. For security, never share this code with anyone.</p>
+        </div>
+
+        <p style="color: #64748b; font-size: 12px; line-height: 1.6; margin: 0 0 16px 0;">
+          If you did not request a password reset, your account is safe and you can ignore this email.
+        </p>
+
+        <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center;">
+          <p style="color: #94a3b8; font-size: 11px; margin: 0;">Mines Quiz Statutory Examination & AI-Proctoring Platform</p>
+        </div>
+
+        ${beaconToken ? `<img src="${baseUrl}/api/auth/email-beacon?token=${beaconToken}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />` : ''}
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('[Student Password Reset OTP] Email sent successfully to', toEmail, ':', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('[Student Password Reset OTP Error] Failed to send email via Gmail SMTP:', error);
+    return false;
+  }
+}

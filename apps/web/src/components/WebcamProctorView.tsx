@@ -13,21 +13,36 @@ interface WebcamProctorViewProps {
 
 export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId }) => {
   const { videoRef, hasPermission, error, startWebcam, captureSnapshot } = useWebcam();
-  const { isModelLoaded, facesDetected } = useFaceDetector({
+  const {
+    facesDetected,
+    yaw,
+    pitch,
+    poseStatus,
+    faceBox,
+  } = useFaceDetector({
     videoRef,
     attemptId,
     enabled: hasPermission,
     captureSnapshot,
   });
 
-  const { reportViolation, violationsCount, maxAllowedViolations, setCameraActive } = useProctorStore();
+  const {
+    reportViolation,
+    reportWarning,
+    violationsCount,
+    maxAllowedViolations,
+    faceAbsenceCount,
+    maxAllowedFaceAbsences,
+    setCameraActive,
+  } = useProctorStore();
 
-  // Noise detector: detects ambient voice or sound > 65dB
+  // Noise detector: detects ambient voice or sound > 70dB
+  // Notice: Background sound triggers an advisory warning, and NEVER quits or terminates the exam.
   const { isNoiseHigh, currentVolume } = useNoiseDetector({
     enabled: hasPermission,
-    noiseThresholdDb: 68,
+    noiseThresholdDb: 70,
     onNoiseViolation: (vol) => {
-      reportViolation('audio_detected', `High Noise Detected (${vol} dB). Please keep your surroundings quiet.`);
+      reportWarning('audio_detected', `Background sound detected (${vol} dB). Please keep your surroundings quiet.`);
     },
   });
 
@@ -45,14 +60,21 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Live Proctoring</span>
+          <span>Live AI Proctoring</span>
         </div>
-        <div className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-          Violations: {violationsCount}/{maxAllowedViolations}
+        <div className="flex items-center gap-2">
+          {faceAbsenceCount > 0 && (
+            <div className="text-[11px] font-mono px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-800 animate-pulse">
+              Face: {faceAbsenceCount}/{maxAllowedFaceAbsences}
+            </div>
+          )}
+          <div className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+            Violations: {violationsCount}/{maxAllowedViolations}
+          </div>
         </div>
       </div>
 
-      {/* Video Box with REC overlay */}
+      {/* Video Box with Live AI HUD Overlay */}
       <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
         <video
           ref={videoRef}
@@ -79,73 +101,179 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
               <span>REC</span>
             </div>
 
-            {/* Corner Face Tracker Frame */}
-            <div className="absolute inset-4 border border-dashed border-emerald-400/40 rounded-lg pointer-events-none">
-              <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-emerald-400" />
-              <div className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-emerald-400" />
-              <div className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b-2 border-l-2 border-emerald-400" />
-              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-emerald-400" />
+            {/* Dynamic AI Face Tracking Reticle */}
+            {faceBox && (
+              <div
+                className={`absolute border-2 rounded-xl pointer-events-none transition-all duration-150 ${
+                  poseStatus === 'center'
+                    ? 'border-emerald-400/80 bg-emerald-400/5 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                    : poseStatus === 'no_face' || poseStatus === 'multiple'
+                    ? 'border-rose-500/90 bg-rose-500/10 shadow-[0_0_12px_rgba(244,63,94,0.4)] animate-pulse'
+                    : 'border-amber-400/90 bg-amber-400/10 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
+                }`}
+                style={{
+                  left: `${faceBox.x * 100}%`,
+                  top: `${faceBox.y * 100}%`,
+                  width: `${faceBox.width * 100}%`,
+                  height: `${faceBox.height * 100}%`,
+                }}
+              >
+                <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-inherit" />
+                <div className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-inherit" />
+                <div className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b-2 border-l-2 border-inherit" />
+                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-inherit" />
+              </div>
+            )}
+
+            {/* Live 3D Head Pose Angle Badge */}
+            <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded-md text-[10px] font-bold border border-white/10 tracking-wide">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  poseStatus === 'center'
+                    ? 'bg-emerald-400 animate-pulse'
+                    : poseStatus === 'no_face' || poseStatus === 'multiple'
+                    ? 'bg-rose-500 animate-ping'
+                    : 'bg-amber-400 animate-pulse'
+                }`}
+              />
+              <span className="text-white capitalize">
+                {poseStatus === 'center'
+                  ? `Facing Center (${yaw > 0 ? '+' : ''}${yaw}°)`
+                  : poseStatus === 'left'
+                  ? `Looking Left (${yaw}°)`
+                  : poseStatus === 'right'
+                  ? `Looking Right (+${yaw}°)`
+                  : poseStatus === 'down'
+                  ? `Looking Down (${pitch}°)`
+                  : poseStatus === 'up'
+                  ? `Looking Up (${pitch}°)`
+                  : poseStatus === 'multiple'
+                  ? `Multiple Faces (${facesDetected})`
+                  : 'No Face Visible'}
+              </span>
             </div>
           </>
         )}
       </div>
 
-      {/* Real-time Proctoring Status Checklist */}
-      <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg p-2.5 text-xs space-y-1.5">
+      {/* Real-time Dynamic Proctoring Status Checklist */}
+      <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg p-2.5 text-xs space-y-1.5 font-inter">
         <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1">
-          Proctoring Status
+          Proctoring Telemetry
         </div>
 
+        {/* 1. Face Count */}
         <div className="flex items-center justify-between">
           <span className="text-slate-300">Face Detected</span>
-          <span className="flex items-center gap-1 text-emerald-400 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Active</span>
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-slate-300">Eye Gaze</span>
-          <span className="flex items-center gap-1 text-emerald-400 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Normal</span>
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-slate-300">Movement</span>
-          <span className="flex items-center gap-1 text-emerald-400 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Stable</span>
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-slate-300">Noise Monitor</span>
           <span
             className={`flex items-center gap-1 font-medium ${
-              isNoiseHigh ? 'text-rose-400' : 'text-emerald-400'
+              facesDetected === 1 ? 'text-emerald-400' : 'text-rose-400 font-bold'
             }`}
           >
-            {isNoiseHigh ? (
+            {facesDetected === 1 ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>1 Face Verified</span>
+              </>
+            ) : facesDetected === 0 ? (
               <>
                 <AlertCircle className="w-3.5 h-3.5 animate-pulse" />
-                <span>High ({currentVolume}dB)</span>
+                <span>No Face Detected</span>
               </>
             ) : (
               <>
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Low ({currentVolume}dB)</span>
+                <AlertCircle className="w-3.5 h-3.5 animate-pulse" />
+                <span>Multiple Faces ({facesDetected})</span>
               </>
             )}
           </span>
         </div>
 
+        {/* 2. Face Presence Policy (1 Chance) */}
         <div className="flex items-center justify-between">
-          <span className="text-slate-300">Tab Switch</span>
+          <span className="text-slate-300">Face Presence Status</span>
+          <span
+            className={`flex items-center gap-1 font-medium ${
+              faceAbsenceCount === 0 ? 'text-emerald-400' : 'text-amber-400 font-bold'
+            }`}
+          >
+            {faceAbsenceCount === 0 ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>In Frame (1 Chance Active)</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
+                <span>Last Chance (0 Left)</span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* 3. Head Pose and Gaze Angle */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-300">Head Pose / Gaze</span>
+          <span
+            className={`flex items-center gap-1 font-medium ${
+              poseStatus === 'center'
+                ? 'text-emerald-400'
+                : poseStatus === 'no_face' || poseStatus === 'multiple'
+                ? 'text-rose-400 font-bold'
+                : 'text-amber-400 font-semibold'
+            }`}
+          >
+            {poseStatus === 'center' ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Facing Display ({yaw > 0 ? '+' : ''}${yaw}°)</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
+                <span className="capitalize">{poseStatus} ({yaw > 0 ? '+' : ''}${yaw}°)</span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* 4. Movement Integrity */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-300">Movement Integrity</span>
           <span className="flex items-center gap-1 text-emerald-400 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Blocked</span>
+            <span>{Math.abs(yaw) < 20 && Math.abs(pitch) < 20 ? 'Stable' : 'Active Tracking'}</span>
+          </span>
+        </div>
+
+        {/* 5. Noise Monitor (Advisory) */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-300">Noise Monitor (Advisory)</span>
+          <span
+            className={`flex items-center gap-1 font-medium ${
+              isNoiseHigh ? 'text-amber-400' : 'text-emerald-400'
+            }`}
+          >
+            {isNoiseHigh ? (
+              <>
+                <AlertCircle className="w-3.5 h-3.5 animate-pulse" />
+                <span>High ({currentVolume}dB - Warning Only)</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Normal ({currentVolume}dB)</span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* 6. Tab and Window Boundary */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-300">Tab Switch Guard</span>
+          <span className="flex items-center gap-1 text-emerald-400 font-medium">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Active Enforced</span>
           </span>
         </div>
       </div>
@@ -153,7 +281,7 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
       {violationsCount > 0 && (
         <div className="p-2 rounded-lg bg-rose-950/40 border border-rose-900/60 flex items-center gap-2 text-rose-300 text-xs">
           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-          <span>Notice: Suspicious activity logged. Exam integrity is being recorded.</span>
+          <span>Notice: Integrity violation logged ({violationsCount} of {maxAllowedViolations}).</span>
         </div>
       )}
     </div>

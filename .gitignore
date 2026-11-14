@@ -26,6 +26,8 @@ pnpm-debug.log*
 .env.production.local
 .admin-auth.json
 *.admin-auth.json
+.candidates-auth.json
+*.candidates-auth.json
 
 # OS files
 .DS_Store

@@ -17,6 +17,7 @@ import { Button } from '@mines-quiz/ui';
 import { apiClient } from '../../lib/apiClient';
 import { useScreenWakeLock } from '../../hooks/useScreenWakeLock';
 import { yieldToMainThread } from '../../lib/performanceYield';
+import { MINING_STATUTORY_QUESTIONS } from '../../data/miningQuestions';
 import {
   Maximize,
   AlertTriangle,
@@ -50,7 +51,16 @@ export const ExamRoom: React.FC = () => {
     timeRemainingSeconds,
   } = useQuizStore();
 
-  const { reportViolation, isTerminated, violationsCount, maxAllowedViolations } = useProctorStore();
+  const {
+    reportViolation,
+    reportWarning,
+    isTerminated,
+    violationsCount,
+    maxAllowedViolations,
+    faceAbsenceCount,
+    maxAllowedFaceAbsences,
+    activeAlert,
+  } = useProctorStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'quiz' | 'instructions' | 'help' | 'report'>('quiz');
@@ -79,12 +89,12 @@ export const ExamRoom: React.FC = () => {
     enabled: isLiveProctored && !isTerminated,
   });
 
-  // Audio Proctoring: Detect excessive room noise, speech or whispering
+  // Audio Proctoring: Detect excessive room noise or speech (Advisory warning only, no exam termination)
   useNoiseDetector({
     enabled: isLiveProctored && !isTerminated,
-    noiseThresholdDb: 60,
+    noiseThresholdDb: 70,
     onNoiseViolation: (dB) => {
-      reportViolation('audio_detected', `Elevated ambient noise (${dB} dB) or speech detected in room.`);
+      reportWarning('audio_detected', `Elevated ambient noise (${dB} dB) detected in room. Please maintain silence.`);
     },
   });
 
@@ -157,7 +167,26 @@ export const ExamRoom: React.FC = () => {
         console.warn('[ExamRoom] API submit fallback to local record:', apiErr.message);
       }
 
-      // Sync official Live proctored attempt to Admin Command Center
+      // Scientific grading: Compare candidate answers against genuine master questions bank
+      let genuineMarksObtained = 0;
+      const questionMap = new Map(MINING_STATUTORY_QUESTIONS.map((q) => [q.id, q]));
+
+      userAnswers.forEach((ans) => {
+        const masterQ = questionMap.get(ans.questionId);
+        const correctIds = masterQ?.correctOptionIds;
+        if (masterQ && correctIds && correctIds.length > 0) {
+          const selected = ans.selectedOptionIds || [];
+          const isCorrect =
+            selected.length === correctIds.length &&
+            selected.every((id) => correctIds.includes(id));
+
+          if (isCorrect) {
+            genuineMarksObtained += masterQ.marks || 1;
+          }
+        }
+      });
+
+      // Sync official Live proctored attempt to Admin Command Center with genuine score
       if (isLiveProctored && activeAttempt) {
         try {
           await fetch('/api/admin/candidates', {
@@ -170,8 +199,8 @@ export const ExamRoom: React.FC = () => {
               subjectCode: currentQuiz.id.replace('quiz-', '').replace('-live', '').toUpperCase(),
               subjectName: currentQuiz.title,
               mode: 'live',
-              marksObtained: userAnswers.length,
-              totalMarks: currentQuiz.questions?.length ?? 0,
+              marksObtained: genuineMarksObtained,
+              totalMarks: currentQuiz.questions?.length || 30,
               violationsCount,
               timeSpentMinutes: Math.max(1, Math.round((currentQuiz.durationMinutes * 60 - timeRemainingSeconds) / 60)),
             }),
@@ -185,7 +214,7 @@ export const ExamRoom: React.FC = () => {
       if (typeof window !== 'undefined' && activeAttempt.userEmail) {
         localStorage.setItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`, activeAttempt.id);
 
-        // Store session review bundle for instant review on /results
+        // Store session review bundle for instant review on /results with full answer keys
         try {
           localStorage.setItem(
             `mines_session_review_${activeAttempt.id}`,
@@ -196,7 +225,16 @@ export const ExamRoom: React.FC = () => {
               masterQuestions:
                 masterQuestionsForScoring && masterQuestionsForScoring.length > 0
                   ? masterQuestionsForScoring
-                  : currentQuiz.questions,
+                  : (currentQuiz.questions || []).map((q) => {
+                      const master = questionMap.get(q.id);
+                      return master
+                        ? {
+                            ...q,
+                            correctOptionIds: master.correctOptionIds,
+                            explanation: master.explanation,
+                          }
+                        : q;
+                    }),
               mode: currentQuiz.id?.includes('-mock') ? 'mock' : 'live',
             })
           );
@@ -239,7 +277,9 @@ export const ExamRoom: React.FC = () => {
           <AlertTriangle className="w-16 h-16 text-rose-500 mb-4 animate-pulse" />
           <h2 className="text-2xl font-black text-white mb-2">Examination Terminated</h2>
           <p className="text-rose-200 max-w-md text-sm mb-6">
-            Your examination has been automatically terminated due to excessive proctoring violations ({violationsCount} of {maxAllowedViolations} maximum permitted).
+            {activeAlert || (faceAbsenceCount > maxAllowedFaceAbsences
+              ? 'Your examination has been automatically terminated because candidate left camera view (Max 1 chance exceeded).'
+              : `Your examination has been automatically terminated due to excessive proctoring violations (${violationsCount} of ${maxAllowedViolations} maximum permitted).`)}
           </p>
           <Button
             variant="danger"
