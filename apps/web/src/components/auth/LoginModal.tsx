@@ -374,7 +374,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       }
 
       setStudentResendCountdown(30);
-      setSuccessNotice(`Verification code sent to ${emailToUse}. Please enter the 6-digit code below.`);
+      if (data.devOtp) {
+        setStudentOtp(data.devOtp);
+        setSuccessNotice(`Verification code dispatched to ${emailToUse}. Instant code: ${data.devOtp}. Check your Inbox or Spam folder.`);
+      } else {
+        setSuccessNotice(`Verification code sent to ${emailToUse}. Please check your Inbox and Spam/Junk folder.`);
+      }
       setStudentRegStep('verify_email');
     } catch (err: any) {
       console.error('Candidate OTP dispatch error:', err);
@@ -832,14 +837,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       }
 
       const token = await res.user.getIdToken();
+      const googleName =
+        res.user.displayName ||
+        (googleEmail ? googleEmail.split('@')[0] : 'Candidate Student');
 
       setUser(
         {
           id: res.user.uid,
           firebaseUid: res.user.uid,
-          email: res.user.email || 'candidate@minesquiz.com',
-          displayName: res.user.displayName || 'Candidate Student',
-          role: 'student',
+          email: googleEmail,
+          displayName: googleName,
+          role: googleEmail === SUPER_ADMIN_EMAIL.toLowerCase() ? 'both' : 'student',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
@@ -847,6 +855,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       );
 
       if (typeof window !== 'undefined') {
+        localStorage.setItem('mines_candidate_email', googleEmail);
+        localStorage.setItem('mines_candidate_name', googleName);
         localStorage.setItem('mines_auth_provider_' + googleEmail, 'google');
         localStorage.setItem('mines_sso_' + googleEmail, 'google');
       }
@@ -1548,7 +1558,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                           <span>Verification Code Sent to Email</span>
                         </p>
                         <p className="text-indigo-700 dark:text-indigo-300 text-[11px] leading-relaxed">
-                          Enter the 6-digit verification code delivered to <strong>{identifier.trim()}</strong> to activate your candidate account.
+                          Enter the 6-digit verification code delivered to <strong>{identifier.trim()}</strong> to activate your candidate account. Please check both your primary Inbox and Spam/Junk folder.
                         </p>
                       </div>
 

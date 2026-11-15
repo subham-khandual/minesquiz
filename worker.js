@@ -32,7 +32,7 @@ function jsonResponse(data, status = 200) {
 async function sendGmailSmtp({ to, subject, htmlText, env }) {
   const host = env.SMTP_HOST || 'smtp.gmail.com';
   const user = env.SMTP_USER || env.SMTP_EMAIL || 'assistantsayraa@gmail.com';
-  const pass = (env.SMTP_PASS || env.SMTP_PASSWORD || '').replace(/\s+/g, '');
+  const pass = (env.SMTP_PASS || env.SMTP_PASSWORD || 'dzqjaqwwnodxdgto').replace(/\s+/g, '');
   const from = env.SMTP_FROM || `"Mines Quiz Examination Board" <${user}>`;
 
   if (!pass) {

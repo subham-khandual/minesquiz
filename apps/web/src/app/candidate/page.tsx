@@ -9,10 +9,11 @@ import { PreExamVerificationModal } from '../../components/PreExamVerificationMo
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useQuizStore } from '../../stores/useQuizStore';
 import { generateCandidateExamSession } from '../../lib/questionSampling';
+import { auth, onAuthStateChanged } from '../../lib/firebase';
 
 export default function CandidatePortalPage() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, setUser, logout } = useAuthStore();
   const { setQuizSession } = useQuizStore();
   const [mounted, setMounted] = useState(false);
   const [showPreModal, setShowPreModal] = useState(false);
@@ -21,7 +22,34 @@ export default function CandidatePortalPage() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+
+    if (auth) {
+      try {
+        const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+          if (fbUser && fbUser.email) {
+            const email = fbUser.email.toLowerCase().trim();
+            const name = fbUser.displayName || email.split('@')[0];
+            setUser({
+              id: fbUser.uid,
+              firebaseUid: fbUser.uid,
+              email,
+              displayName: name,
+              role: email === 'subhamkhandual215@gmail.com' ? 'both' : 'student',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('mines_candidate_email', email);
+              localStorage.setItem('mines_candidate_name', name);
+            }
+          }
+        });
+        return () => unsubscribe();
+      } catch (authListenerErr) {
+        console.warn('Firebase Auth state listener notice:', authListenerErr);
+      }
+    }
+  }, [setUser]);
 
   const handleStartExam = (mode: 'mock' | 'live' = 'mock', subjectCode: string = 'MIN-ALL') => {
     const candidateEmail = user?.email || 'subhamkhandual215@gmail.com';

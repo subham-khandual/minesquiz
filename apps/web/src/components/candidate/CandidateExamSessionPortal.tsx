@@ -187,8 +187,14 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
     }
   };
 
-  const candidateName = user?.displayName || 'Candidate Student';
-  const candidateEmail = user?.email || 'student@minesquiz.com';
+  const candidateEmail =
+    user?.email ||
+    (typeof window !== 'undefined' ? localStorage.getItem('mines_candidate_email') : null) ||
+    'subhamkhandual197@gmail.com';
+  const candidateName =
+    user?.displayName ||
+    (typeof window !== 'undefined' ? localStorage.getItem('mines_candidate_name') : null) ||
+    (candidateEmail.includes('@') ? candidateEmail.split('@')[0] : 'Subham Khandual');
   const candidateInitials = candidateName.slice(0, 2).toUpperCase();
 
   // Candidate Mock Attempts History
