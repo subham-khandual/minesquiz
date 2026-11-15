@@ -15,7 +15,7 @@
     "clean": "pnpm kill:ports && pnpm clean:next",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
-    "deploy": "wrangler pages deploy apps/web/.next --project-name=minesquiz"
+    "deploy": "wrangler deploy"
   },
   "keywords": [
     "examination",

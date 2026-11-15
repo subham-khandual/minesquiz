@@ -51,6 +51,31 @@ export default function CandidatePortalPage() {
     }
   }, [setUser]);
 
+  // Automatic Fresh Reset: clears prior attempts and lockouts so candidate can take exam fresh
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const CANDIDATE_SCHEMA_VERSION = 'v4.0';
+      const stored = localStorage.getItem('mines_candidate_schema_version');
+      if (stored !== CANDIDATE_SCHEMA_VERSION) {
+        Object.keys(localStorage).forEach((key) => {
+          if (
+            key.startsWith('mines_attempt_') ||
+            key.startsWith('mines_terminated_') ||
+            key.startsWith('mines_lockout_') ||
+            key.startsWith('mines_session_review_') ||
+            key === 'mines_last_completion_notice'
+          ) {
+            localStorage.removeItem(key);
+          }
+        });
+        try {
+          sessionStorage.removeItem('mines_active_quiz_session');
+        } catch {}
+        localStorage.setItem('mines_candidate_schema_version', CANDIDATE_SCHEMA_VERSION);
+      }
+    }
+  }, []);
+
   const handleStartExam = (mode: 'mock' | 'live' = 'mock', subjectCode: string = 'MIN-ALL') => {
     const candidateEmail = user?.email || 'subhamkhandual215@gmail.com';
     const targetQuizId = `quiz-${subjectCode.toLowerCase()}-${mode}`;
@@ -61,8 +86,14 @@ export default function CandidatePortalPage() {
       if (!isMasterUser) {
         const priorAttempt = localStorage.getItem(`mines_attempt_${candidateEmail}_${targetQuizId}`);
         const wasTerminated = localStorage.getItem(`mines_terminated_${candidateEmail}_${targetQuizId}`);
+        let cookieAttempt = false;
+        try {
+          cookieAttempt =
+            document.cookie.includes(`mines_sub_${btoa(candidateEmail).replace(/=/g, '')}`) ||
+            document.cookie.includes(`mines_term_${btoa(candidateEmail).replace(/=/g, '')}`);
+        } catch {}
 
-        if (priorAttempt || wasTerminated) {
+        if (priorAttempt || wasTerminated || cookieAttempt) {
           alert(
             'Single Attempt Enforcement: You have already attempted or completed this statutory examination paper (' +
               subjectCode +

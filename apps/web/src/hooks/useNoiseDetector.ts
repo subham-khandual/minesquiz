@@ -12,6 +12,7 @@ export function useNoiseDetector({
   onNoiseViolation,
 }: UseNoiseDetectorOptions = {}) {
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
   const [currentVolume, setCurrentVolume] = useState<number>(0);
   const [isNoiseHigh, setIsNoiseHigh] = useState<boolean>(false);
   const [hasAudioPermission, setHasAudioPermission] = useState<boolean>(false);
@@ -21,12 +22,50 @@ export function useNoiseDetector({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const violationCooldownRef = useRef<boolean>(false);
+  const onViolationRef = useRef(onNoiseViolation);
+
+  useEffect(() => {
+    onViolationRef.current = onNoiseViolation;
+  }, [onNoiseViolation]);
+
+  const stopAudio = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (sourceRef.current) {
+      try {
+        sourceRef.current.disconnect();
+      } catch {}
+      sourceRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => {
+        try {
+          t.stop();
+          t.enabled = false;
+        } catch {}
+      });
+      audioStreamRef.current = null;
+    }
+    setAudioStream(null);
+    setHasAudioPermission(false);
+  }, []);
 
   const startAudio = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
       setAudioStream(stream);
       setHasAudioPermission(true);
+
+      if (typeof window !== 'undefined') {
+        (window as any).__stopAllAudioHardware = stopAudio;
+      }
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioCtx();
@@ -64,8 +103,8 @@ export function useNoiseDetector({
 
         if (high && !violationCooldownRef.current) {
           violationCooldownRef.current = true;
-          if (onNoiseViolation) {
-            onNoiseViolation(decibels);
+          if (onViolationRef.current) {
+            onViolationRef.current(decibels);
           }
           // Cooldown for 5 seconds to prevent alert flood
           setTimeout(() => {
@@ -81,24 +120,7 @@ export function useNoiseDetector({
       console.warn('Audio/Mic access denied or unavailable:', err);
       setHasAudioPermission(false);
     }
-  }, [noiseThresholdDb, onNoiseViolation]);
-
-  const stopAudio = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    if (sourceRef.current) {
-      sourceRef.current.disconnect();
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
-    }
-    if (audioStream) {
-      audioStream.getTracks().forEach((t) => t.stop());
-      setAudioStream(null);
-    }
-    setHasAudioPermission(false);
-  }, [audioStream]);
+  }, [noiseThresholdDb, stopAudio]);
 
   useEffect(() => {
     if (enabled) {

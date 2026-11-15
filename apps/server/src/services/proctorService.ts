@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { ViolationLogModel } from '../models/ViolationLog';
 import { AttemptModel } from '../models/Attempt';
 import { QuizModel } from '../models/Quiz';
@@ -18,8 +19,10 @@ export class ProctorService {
 
     await violation.save();
 
-    // Increment violation count in the active attempt
-    const attempt = await AttemptModel.findById(data.attemptId);
+    // Increment violation count in the active attempt if valid ObjectId
+    const attempt = mongoose.Types.ObjectId.isValid(data.attemptId)
+      ? await AttemptModel.findById(data.attemptId)
+      : null;
     let isTerminated = false;
 
     if (attempt) {

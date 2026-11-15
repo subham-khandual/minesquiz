@@ -2,9 +2,31 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 export function useWebcam() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean>(false);
+
+  const stopWebcam = useCallback(() => {
+    // 1. Immediately stop and disable all hardware tracks from streamRef
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+          track.enabled = false;
+        } catch {}
+      });
+      streamRef.current = null;
+    }
+
+    // 2. Sever video element hardware binding
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setStream(null);
+    setHasPermission(false);
+  }, []);
 
   const startWebcam = useCallback(async () => {
     try {
@@ -18,25 +40,26 @@ export function useWebcam() {
         audio: false,
       });
 
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       setHasPermission(true);
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        try {
+          await videoRef.current.play();
+        } catch {}
+      }
+
+      // Expose global shutdown hook for immediate exam completion cleanup
+      if (typeof window !== 'undefined') {
+        (window as any).__stopAllWebcamHardware = stopWebcam;
       }
     } catch (err: any) {
       setError(err.message || 'Unable to access webcam');
       setHasPermission(false);
     }
-  }, []);
-
-  const stopWebcam = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-      setHasPermission(false);
-    }
-  }, [stream]);
+  }, [stopWebcam]);
 
   const captureSnapshot = useCallback((): string | null => {
     if (!videoRef.current) return null;
@@ -51,6 +74,7 @@ export function useWebcam() {
     return canvas.toDataURL('image/jpeg', 0.6);
   }, []);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopWebcam();
@@ -67,4 +91,3 @@ export function useWebcam() {
     captureSnapshot,
   };
 }
-

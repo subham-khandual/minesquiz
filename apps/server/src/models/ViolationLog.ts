@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 import { ProctorViolationType, ViolationSeverity } from '@mines-quiz/types';
 
 export interface IViolationLogDocument extends Document {
-  attemptId: mongoose.Types.ObjectId;
+  attemptId: mongoose.Types.ObjectId | string;
   userId: string;
   type: ProctorViolationType;
   severity: ViolationSeverity;
@@ -15,7 +15,7 @@ export interface IViolationLogDocument extends Document {
 
 const ViolationLogSchema = new Schema<IViolationLogDocument>(
   {
-    attemptId: { type: Schema.Types.ObjectId, ref: 'Attempt', required: true, index: true },
+    attemptId: { type: Schema.Types.Mixed, ref: 'Attempt', required: true, index: true },
     userId: { type: String, required: true, index: true },
     type: {
       type: String,

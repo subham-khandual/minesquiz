@@ -116,6 +116,31 @@ export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs, includeHo
       answer:
         'MinesQuiz covers core statutory mining engineering papers including MIN-101 (Mining Legislation and Safety), MIN-102 (Mine Ventilation and Gas Detection), MIN-103 (Winning and Working Methods), MIN-104 (Opencast Mining), MIN-105 (Explosives and Blasting), and MIN-106 (Mine Fires and Rescue).',
     },
+    {
+      question: 'What are the statutory methane (CH4) inflammable gas limits under CMR 2017?',
+      answer:
+        'Under Coal Mines Regulations 2017 Regulation 153 and 154, inflammable gas shall not exceed 0.75% in the return airway of any ventilating district, or 1.25% in any part of the mine. Electric supply must be disconnected immediately if inflammable gas reaches 1.25% in the general body of air.',
+    },
+    {
+      question: 'How is flame safety lamp testing conducted for gas detection in underground mines?',
+      answer:
+        'Flame safety lamps detect methane through accumulation testing near the roof cavity and percentage testing using a lowered non-luminous testing flame, where a pale blue gas cap forms between 1.5% and 2.0% methane concentration.',
+    },
+    {
+      question: 'What is the minimum air quantity standard in underground coal mines under CMR 2017?',
+      answer:
+        'Under CMR 2017 Regulation 160, the ventilation system must supply at least 6 cubic meters per minute of fresh air per person employed in the largest shift, or 2.5 cubic meters per minute per daily ton of coal output, whichever is higher.',
+    },
+    {
+      question: 'What is the statutory danger zone radius for opencast mine blasting?',
+      answer:
+        'Under CMR 2017 Regulation 129, a danger zone of not less than 300 meters radius from the blast site must be demarcated and fully evacuated before executing blasting operations in open-cast mines.',
+    },
+    {
+      question: 'How does MinesQuiz verify candidate DGMS examination scores and certificates?',
+      answer:
+        'Every completed official live proctored examination issues a unique tamper-proof attempt ID and digital scorecard with percentage breakdown across statutory DGMS mining engineering subjects, archived for verified candidate transcripts.',
+    },
   ];
 
   const activeFaqs = faqItems && faqItems.length > 0 ? faqItems : defaultFaqs;

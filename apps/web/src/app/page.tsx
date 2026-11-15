@@ -74,7 +74,7 @@ export default function HomePage() {
   // Single-attempt check based on email in localStorage with automatic schema versioning
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const CURRENT_SCHEMA_VERSION = 'v3.0';
+      const CURRENT_SCHEMA_VERSION = 'v4.0';
       const storedVersion = localStorage.getItem('mines_schema_version');
       if (storedVersion !== CURRENT_SCHEMA_VERSION) {
         // Automatically flush all prior examination attempts to start completely fresh
@@ -82,11 +82,16 @@ export default function HomePage() {
           if (
             key.startsWith('mines_attempt_') ||
             key.startsWith('mines_terminated_') ||
-            key.startsWith('mines_lockout_')
+            key.startsWith('mines_lockout_') ||
+            key.startsWith('mines_session_review_') ||
+            key === 'mines_last_completion_notice'
           ) {
             localStorage.removeItem(key);
           }
         });
+        try {
+          sessionStorage.removeItem('mines_active_quiz_session');
+        } catch {}
         localStorage.setItem('mines_schema_version', CURRENT_SCHEMA_VERSION);
       }
 
