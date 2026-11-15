@@ -152,3 +152,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  if (!isAuthorizedAdmin(req)) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized: Admin credentials required to reset examination ledger.' },
+      { status: 401 }
+    );
+  }
+
+  globalThis.__MINES_CANDIDATE_ATTEMPTS__ = [];
+  return NextResponse.json({
+    success: true,
+    message: 'All examination records have been completely reset.',
+    timestamp: Date.now(),
+  });
+}

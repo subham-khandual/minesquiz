@@ -16,14 +16,48 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'motion/react', 'gsap'],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/manifest.webmanifest',
+        destination: '/manifest.json',
+      },
+    ];
+  },
   async headers() {
     return [
+      {
+        source: '/manifest.json',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/manifest+json; charset=utf-8',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+        ],
+      },
+      {
+        source: '/manifest.webmanifest',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/manifest+json; charset=utf-8',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+        ],
+      },
       {
         source: '/:path*',
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin-allow-popups',
+            value: 'unsafe-none',
           },
         ],
       },

@@ -381,6 +381,16 @@ export function saveCandidateAccount(
 }
 
 /**
+ * Checks if a candidate account is already registered
+ */
+export function hasCandidateAccount(email: string): boolean {
+  if (!email) return false;
+  const normalizedEmail = email.trim().toLowerCase();
+  loadCandidatesFromDisk();
+  return candidatesCache.has(normalizedEmail);
+}
+
+/**
  * Verifies candidate email + password credentials for routine direct sign-in (NO OTP)
  */
 export function verifyCandidateCredentials(

@@ -27,18 +27,21 @@ export default function CandidatePortalPage() {
     const candidateEmail = user?.email || 'subhamkhandual215@gmail.com';
     const targetQuizId = `quiz-${subjectCode.toLowerCase()}-${mode}`;
 
-    // Single Attempt Enforcement for Live Proctored Exams
+    // Single Attempt Enforcement for Live Proctored Exams (Exempts designated master user)
     if (mode === 'live' && typeof window !== 'undefined') {
-      const priorAttempt = localStorage.getItem(`mines_attempt_${candidateEmail}_${targetQuizId}`);
-      const wasTerminated = localStorage.getItem(`mines_terminated_${candidateEmail}_${targetQuizId}`);
+      const isMasterUser = candidateEmail.toLowerCase() === 'subhamkhandual215@gmail.com';
+      if (!isMasterUser) {
+        const priorAttempt = localStorage.getItem(`mines_attempt_${candidateEmail}_${targetQuizId}`);
+        const wasTerminated = localStorage.getItem(`mines_terminated_${candidateEmail}_${targetQuizId}`);
 
-      if (priorAttempt || wasTerminated) {
-        alert(
-          'Single Attempt Enforcement: You have already attempted or completed this statutory examination paper (' +
-            subjectCode +
-            '). Under DGMS regulations, multiple retakes on the same candidate email are strictly prohibited.'
-        );
-        return;
+        if (priorAttempt || wasTerminated) {
+          alert(
+            'Single Attempt Enforcement: You have already attempted or completed this statutory examination paper (' +
+              subjectCode +
+              '). Under DGMS regulations, multiple retakes on the same candidate email are strictly prohibited.'
+          );
+          return;
+        }
       }
     }
 

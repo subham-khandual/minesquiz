@@ -112,6 +112,46 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Reset All Candidate Examination Attempts Handler
+  const handleResetAllAttempts = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to completely clear all candidate examination attempt records and retake locks? All candidates will be able to take live examinations from a clean slate.'
+    );
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('mines_quiz_token') : null;
+      const res = await fetch('/api/admin/candidates', {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCandidates([]);
+        if (typeof window !== 'undefined') {
+          Object.keys(localStorage).forEach((key) => {
+            if (
+              key.startsWith('mines_attempt_') ||
+              key.startsWith('mines_terminated_') ||
+              key.startsWith('mines_lockout_')
+            ) {
+              localStorage.removeItem(key);
+            }
+          });
+        }
+        alert('All candidate examination records and lockout keys have been reset successfully.');
+      } else {
+        alert(data.error || 'Failed to reset candidate examination records.');
+      }
+    } catch (err: any) {
+      console.error('Error resetting candidate records:', err);
+      alert('Network error while resetting examination records.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     fetchCandidates();
@@ -526,13 +566,25 @@ export default function AdminDashboardPage() {
             </button>
 
             {activeAdminTab === 'ledger' && (
-              <button
-                onClick={exportToCSV}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-inter font-semibold transition-all shadow-2xs cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export CSV</span>
-              </button>
+              <>
+                <button
+                  onClick={exportToCSV}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-inter font-semibold transition-all shadow-2xs cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  onClick={handleResetAllAttempts}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-xs font-inter font-semibold transition-all shadow-2xs cursor-pointer"
+                  title="Clear all examination records and reset candidate lockout keys"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Clear All Exam Records</span>
+                </button>
+              </>
             )}
           </div>
         </header>
@@ -652,6 +704,16 @@ export default function AdminDashboardPage() {
                     <option value="MIN-106">MIN-106 (Opencast)</option>
                     <option value="MIN-ALL">MIN-ALL (Comprehensive)</option>
                   </select>
+
+                  <button
+                    onClick={handleResetAllAttempts}
+                    disabled={loading}
+                    className="lg:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-xs font-inter font-semibold transition-all shadow-2xs cursor-pointer"
+                    title="Clear all examination records and reset candidate lockout keys"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Reset Records</span>
+                  </button>
                 </div>
               </div>
 

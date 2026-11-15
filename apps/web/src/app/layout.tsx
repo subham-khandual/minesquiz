@@ -101,7 +101,7 @@ export const metadata: Metadata = {
       { url: '/apple-icon', sizes: '180x180', type: 'image/png' },
     ],
   },
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({

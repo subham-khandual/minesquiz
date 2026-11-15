@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuizStore } from '../../stores/useQuizStore';
 import { useProctorStore } from '../../stores/useProctorStore';
@@ -133,22 +133,91 @@ export const ExamRoom: React.FC = () => {
   const [showMobileCamera, setShowMobileCamera] = useState(false);
   const [showMobileNavigator, setShowMobileNavigator] = useState(false);
 
+  // Tab Switch Violation & Grace Period States (Option B: 1 Warning with 10s Timer + 2nd Strike Disqualification)
+  const [tabSwitchCount, setTabSwitchCount] = useState<number>(0);
+  const [showTabSwitchWarning, setShowTabSwitchWarning] = useState<boolean>(false);
+  const [tabSwitchCountdown, setTabSwitchCountdown] = useState<number>(10);
+  const lastTabSwitchTimeRef = useRef<number>(0);
+
   // Determine if this session is an official Live Proctored Exam or self-paced Mock Practice
   const isLiveProctored = Boolean(currentQuiz?.proctoringEnabled && !currentQuiz?.id?.includes('-mock'));
 
   // Anti-Cheat: Fullscreen enforcer (Only for Live Proctored Exams, relaxed for mobile viewports)
   const { isFullscreen, requestFullscreen, isMobile, setIsFullscreen } = useFullscreen(() => {
-    if (isLiveProctored && !isMobile) {
+    // Suppress redundant fullscreen violation while in tab switch warning state to avoid duplicate strikes
+    if (isLiveProctored && !isMobile && !showTabSwitchWarning && !isTerminated) {
       reportViolation('fullscreen_exit', 'You exited fullscreen mode! This action has been logged.');
     }
   });
 
   // Anti-Cheat: Tab switch and window blur detector (Only for Live Proctored Exams)
   useTabVisibility(() => {
-    if (isLiveProctored) {
-      reportViolation('tab_switch', 'Tab switch or window blur detected! Returning to quiz...');
+    if (!isLiveProctored || isTerminated) return;
+
+    const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
+    const now = Date.now();
+    // Debounce to prevent multiple triggers from blur + visibilitychange within 3 seconds
+    if (now - lastTabSwitchTimeRef.current < 3000) return;
+    lastTabSwitchTimeRef.current = now;
+
+    const newSwitchCount = tabSwitchCount + 1;
+    setTabSwitchCount(newSwitchCount);
+
+    if (newSwitchCount === 1) {
+      // Strike 1: Display 10-second alarming grace warning modal
+      setShowTabSwitchWarning(true);
+      setTabSwitchCountdown(10);
+      reportViolation(
+        'tab_switch',
+        'Tab Switch Warning (Strike 1 of 2): You left the exam window. Next tab switch will immediately terminate your exam.'
+      );
+    } else {
+      // Strike 2: Instant termination and disqualification
+      setShowTabSwitchWarning(false);
+      reportViolation(
+        'tab_switch',
+        'Tab Switch Disqualification (Strike 2 of 2): Multiple tab switches detected outside the examination window.'
+      );
+      if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
+        localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+      }
     }
   });
+
+  // Tab Switch Grace Countdown Timer (10s)
+  useEffect(() => {
+    if (!showTabSwitchWarning || tabSwitchCountdown <= 0 || isTerminated) return;
+
+    const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
+    const timer = setInterval(() => {
+      setTabSwitchCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setShowTabSwitchWarning(false);
+          reportViolation(
+            'tab_switch',
+            'Tab switch grace period expired (10s elapsed). Examination permanently terminated.'
+          );
+          if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
+            localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [showTabSwitchWarning, tabSwitchCountdown, isTerminated, reportViolation, activeAttempt, currentQuiz]);
+
+  const handleResumeFromTabSwitch = async () => {
+    setShowTabSwitchWarning(false);
+    if (!isMobile) {
+      try {
+        await requestFullscreen();
+      } catch {}
+    }
+  };
 
   // Anti-Cheat: Context menu, clipboard, and DevTools blocker hook (Only for Live Proctored Exams)
   useAntiCheat({
@@ -172,21 +241,27 @@ export const ExamRoom: React.FC = () => {
     enabled: !isTerminated,
   });
 
-  // Check persistent termination lock on mount to prevent F5 strike erasure
+  // Check persistent termination lock on mount to prevent F5 strike erasure (master user exempt)
   useEffect(() => {
     if (activeAttempt?.userEmail && currentQuiz?.id && typeof window !== 'undefined') {
-      const wasTerminated = localStorage.getItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`);
-      if (wasTerminated && !isTerminated) {
-        reportViolation('tab_switch', 'Previous session was disqualified and permanently terminated.');
+      const isMasterUser = activeAttempt.userEmail.toLowerCase() === 'subhamkhandual215@gmail.com';
+      if (!isMasterUser) {
+        const wasTerminated = localStorage.getItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`);
+        if (wasTerminated && !isTerminated) {
+          reportViolation('tab_switch', 'Previous session was disqualified and permanently terminated.');
+        }
       }
     }
   }, [activeAttempt, currentQuiz, isTerminated, reportViolation]);
 
-  // Persist termination immediately upon reaching max violations
+  // Persist termination immediately upon reaching max violations (master user exempt)
   useEffect(() => {
     if (isTerminated && activeAttempt?.userEmail && currentQuiz?.id && typeof window !== 'undefined') {
-      localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
-      localStorage.setItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`, activeAttempt.id);
+      const isMasterUser = activeAttempt.userEmail.toLowerCase() === 'subhamkhandual215@gmail.com';
+      if (!isMasterUser) {
+        localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+        localStorage.setItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`, activeAttempt.id);
+      }
     }
   }, [isTerminated, activeAttempt, currentQuiz]);
 
@@ -366,6 +441,52 @@ export const ExamRoom: React.FC = () => {
         </div>
       )}
 
+      {/* Tab Switch Strike 1 Warning Grace Modal */}
+      {showTabSwitchWarning && !isTerminated && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 text-center select-none">
+          <div className="max-w-md w-full bg-slate-900 border-2 border-amber-500 rounded-2xl p-6 sm:p-8 shadow-2xl text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400 animate-pulse">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 font-inter font-bold text-xs uppercase tracking-wider">
+                Tab Switch Warning (Strike 1 of 2)
+              </span>
+              <h2 className="text-xl sm:text-2xl font-poppins font-black text-white">
+                Tab Switch Detected!
+              </h2>
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-300 font-inter leading-relaxed">
+              You navigated away from the active examination window. Under DGMS statutory regulations, leaving the exam window is strictly forbidden.
+            </p>
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs font-semibold">
+              Your NEXT tab switch will immediately and permanently TERMINATE your examination.
+            </div>
+
+            <div className="flex flex-col items-center justify-center py-1">
+              <span className="text-3xl font-black font-poppins text-amber-400 tabular-nums">
+                {tabSwitchCountdown}s
+              </span>
+              <span className="text-[11px] text-slate-400 font-inter">
+                Remaining to resume before automatic termination
+              </span>
+            </div>
+
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleResumeFromTabSwitch}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-poppins font-bold text-sm py-3 rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer"
+            >
+              Resume Examination Now
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Disqualification / Terminated Modal */}
       {isTerminated && (
         <div className="fixed inset-0 z-50 bg-red-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
@@ -491,7 +612,7 @@ export const ExamRoom: React.FC = () => {
       )}
 
       {/* Main 3-Column / Responsive Layout */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-6">
         {/* Left 2 Cols: Sidebar Navigation (Quiz, Instructions, Help, Report) */}
         <aside className="lg:col-span-2 hidden lg:flex flex-col gap-2">
           <button
@@ -547,22 +668,22 @@ export const ExamRoom: React.FC = () => {
         {/* Center 7 Cols: Question Card */}
         <main className="lg:col-span-7 flex flex-col">
           {activeTab === 'quiz' ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-7 flex-1 flex flex-col justify-between shadow-xl">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-7 flex-1 flex flex-col justify-between shadow-xl">
               <div>
                 {/* Question Info Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-4 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="font-poppins font-bold text-sm sm:text-base text-blue-400">
+                <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2.5 sm:pb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="font-poppins font-bold text-xs sm:text-base text-blue-400">
                       Question {currentIndex + 1} of {currentQuiz.questions.length}
                     </span>
                     <span className="text-slate-600 text-xs">•</span>
-                    <span className="text-xs font-inter font-medium text-slate-400">
+                    <span className="text-[11px] sm:text-xs font-inter font-medium text-slate-400">
                       {currentQuestion.type === 'multiple-select' ? 'Multiple Choice' : 'Single Choice'}
                     </span>
                   </div>
 
                   {/* Zero Negative Marking Indicator */}
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-inter font-semibold">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] sm:text-xs font-inter font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     <span>+{currentQuestion.marks || 1} Mark</span>
                     <span className="text-emerald-500/60">•</span>
@@ -570,19 +691,19 @@ export const ExamRoom: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Actual Question Text - Bold & Enlarged for Mobile and Desktop with Copy-Protection */}
+                {/* Actual Question Text - Bold & Enlarged with Mobile Screen Optimization */}
                 <div
-                  className="my-5 sm:my-7 select-none"
+                  className="my-2.5 sm:my-6 select-none"
                   onContextMenu={(e) => e.preventDefault()}
                   onCopy={(e) => e.preventDefault()}
                 >
-                  <h2 className="text-xl sm:text-2xl font-poppins font-bold text-white leading-relaxed sm:leading-snug tracking-tight select-none">
+                  <h2 className="text-sm sm:text-2xl font-poppins font-bold text-white leading-snug sm:leading-snug tracking-tight select-none">
                     {currentQuestion.text}
                   </h2>
                 </div>
 
-                {/* Radio Options List - Tactile A, B, C, D Badges & Large Touch Targets */}
-                <div className="space-y-3.5 sm:space-y-4">
+                {/* Radio Options List - Compact Vertical Rhythm on Mobile, Tactile A, B, C, D Badges */}
+                <div className="space-y-2 sm:space-y-4">
                   {currentQuestion.options.map((opt, oIdx) => {
                     const isSelected = selectedOptions.includes(opt.id);
                     const isMultiple = currentQuestion.type === 'multiple-select';
@@ -592,14 +713,14 @@ export const ExamRoom: React.FC = () => {
                       <div
                         key={opt.id}
                         onClick={() => selectOption(currentQuestion.id, opt.id, isMultiple)}
-                        className={`flex items-center gap-3.5 sm:gap-4 p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all active:scale-[0.99] min-h-[60px] ${isSelected
+                        className={`flex items-center gap-2.5 sm:gap-4 p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border-2 cursor-pointer transition-all active:scale-[0.99] min-h-[44px] sm:min-h-[60px] ${isSelected
                           ? 'border-blue-500 bg-blue-950/60 text-white shadow-md shadow-blue-950/50 ring-2 ring-blue-500/30'
                           : 'border-slate-800 bg-slate-800/40 hover:bg-slate-800/80 hover:border-slate-700 text-slate-200'
                           }`}
                       >
                         {/* Tactile Letter Badge */}
                         <div
-                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-poppins font-black text-sm sm:text-base flex items-center justify-center shrink-0 transition-all ${isSelected
+                          className={`w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl font-poppins font-bold sm:font-black text-xs sm:text-base flex items-center justify-center shrink-0 transition-all ${isSelected
                             ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40'
                             : 'bg-slate-800 text-slate-300 border border-slate-700'
                             }`}
@@ -608,16 +729,16 @@ export const ExamRoom: React.FC = () => {
                         </div>
 
                         {/* Option Text */}
-                        <span className="text-base sm:text-lg font-inter font-medium leading-relaxed flex-1">
+                        <span className="text-xs sm:text-lg font-inter font-medium leading-snug sm:leading-relaxed flex-1">
                           {opt.text}
                         </span>
 
                         {/* Radio Dot Indicator */}
                         <div
-                          className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border transition-all ${isSelected ? 'border-blue-400 bg-blue-500' : 'border-slate-600 bg-slate-800'
+                          className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center shrink-0 border transition-all ${isSelected ? 'border-blue-400 bg-blue-500' : 'border-slate-600 bg-slate-800'
                             }`}
                         >
-                          {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                          {isSelected && <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-white" />}
                         </div>
                       </div>
                     );
@@ -625,19 +746,20 @@ export const ExamRoom: React.FC = () => {
                 </div>
               </div>
 
-              {/* Bottom Actions: Previous, Mark for Review, Save & Next */}
-              <div className="pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mt-8">
+              {/* Bottom Actions: Previous, Mark for Review, Save & Next - Single Compact Row on Mobile */}
+              <div className="pt-3 sm:pt-6 border-t border-slate-800 flex flex-row items-center justify-between gap-1.5 sm:gap-4 mt-3 sm:mt-8">
                 <Button
                   variant="outline"
                   onClick={() => toggleMarkForReview(currentQuestion.id)}
-                  className={`min-h-[46px] px-4 font-poppins font-semibold text-xs sm:text-sm ${isMarked ? 'border-amber-500 text-amber-400 bg-amber-500/10' : ''
+                  className={`min-h-[38px] sm:min-h-[46px] px-2.5 sm:px-4 font-poppins font-semibold text-[11px] sm:text-sm shrink-0 ${isMarked ? 'border-amber-500 text-amber-400 bg-amber-500/10' : ''
                     }`}
                 >
-                  <Flag className="w-4 h-4 mr-2" />
-                  {isMarked ? 'Marked for Review' : 'Mark for Review'}
+                  <Flag className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">{isMarked ? 'Marked for Review' : 'Mark for Review'}</span>
+                  <span className="sm:hidden">{isMarked ? 'Marked' : 'Review'}</span>
                 </Button>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                   <Button
                     variant="secondary"
                     disabled={currentIndex === 0}
@@ -645,18 +767,18 @@ export const ExamRoom: React.FC = () => {
                       await yieldToMainThread();
                       setCurrentIndex(currentIndex - 1);
                     }}
-                    className="flex-1 sm:flex-initial min-h-[46px] px-5 font-poppins font-semibold text-xs sm:text-sm"
+                    className="min-h-[38px] sm:min-h-[46px] px-2.5 sm:px-5 font-poppins font-semibold text-[11px] sm:text-sm shrink-0"
                   >
-                    <ChevronLeft className="w-4 h-4 mr-1" />
-                    Previous
+                    <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Previous</span>
                   </Button>
                   <Button
                     variant="primary"
                     onClick={handleNext}
-                    className="flex-1 sm:flex-initial min-h-[46px] px-6 bg-blue-600 hover:bg-blue-500 text-white font-poppins font-bold text-xs sm:text-sm shadow-md shadow-blue-600/30"
+                    className="min-h-[38px] sm:min-h-[46px] px-3 sm:px-6 bg-blue-600 hover:bg-blue-500 text-white font-poppins font-bold text-xs sm:text-sm shadow-md shadow-blue-600/30 shrink-0"
                   >
-                    {isLastQuestion ? 'Review & Submit' : 'Save & Next'}
-                    {!isLastQuestion && <ChevronRight className="w-4 h-4 ml-1" />}
+                    <span>{isLastQuestion ? 'Submit' : 'Save & Next'}</span>
+                    {!isLastQuestion && <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1" />}
                   </Button>
                 </div>
               </div>

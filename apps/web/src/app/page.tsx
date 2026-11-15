@@ -74,12 +74,16 @@ export default function HomePage() {
   // Single-attempt check based on email in localStorage with automatic schema versioning
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const CURRENT_SCHEMA_VERSION = 'v2.1';
+      const CURRENT_SCHEMA_VERSION = 'v3.0';
       const storedVersion = localStorage.getItem('mines_schema_version');
       if (storedVersion !== CURRENT_SCHEMA_VERSION) {
-        // Automatically flush stale demo attempts from previous developer runs
+        // Automatically flush all prior examination attempts to start completely fresh
         Object.keys(localStorage).forEach((key) => {
-          if (key.startsWith('mines_attempt_demo') || key.startsWith('mines_attempt_candidate')) {
+          if (
+            key.startsWith('mines_attempt_') ||
+            key.startsWith('mines_terminated_') ||
+            key.startsWith('mines_lockout_')
+          ) {
             localStorage.removeItem(key);
           }
         });

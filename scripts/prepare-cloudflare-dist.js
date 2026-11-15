@@ -59,7 +59,11 @@ function prepareCloudflareDist() {
     fs.copyFileSync(serverManifestBody, distJsonManifest);
   } else {
     const publicWebmanifest = path.join(publicDir, 'manifest.webmanifest');
-    if (fs.existsSync(publicWebmanifest)) {
+    const publicJson = path.join(publicDir, 'manifest.json');
+    if (fs.existsSync(publicJson)) {
+      fs.copyFileSync(publicJson, distJsonManifest);
+      fs.copyFileSync(publicJson, distWebmanifest);
+    } else if (fs.existsSync(publicWebmanifest)) {
       fs.copyFileSync(publicWebmanifest, distWebmanifest);
       fs.copyFileSync(publicWebmanifest, distJsonManifest);
     }

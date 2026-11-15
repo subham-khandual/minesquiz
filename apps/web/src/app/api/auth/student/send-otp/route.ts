@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { saveStudentOtp } from '../../../../../lib/studentAuthStore';
+import { saveStudentOtp, hasCandidateAccount } from '../../../../../lib/studentAuthStore';
 import { sendCandidateRegistrationOtpEmail } from '../../../../../lib/emailTransporter';
 import { getClientIp, checkRateLimit, checkCooldown } from '../../../../../lib/rateLimit';
 import { isDisposableEmail, verifyEmailDomainMX } from '../../../../../lib/emailValidation';
@@ -32,6 +32,18 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: 'Valid email address is required.' },
         { status: 400 }
+      );
+    }
+
+    // Check if account already exists
+    if (hasCandidateAccount(email)) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'EMAIL_ALREADY_REGISTERED',
+          error: 'An account with this email address already exists. Please sign in with your password or use Google Sign-In.',
+        },
+        { status: 409 }
       );
     }
 

@@ -93,6 +93,7 @@ export function useAntiCheat({ enabled, onViolation }: AntiCheatOptions) {
 
     // 5. Track mouse leaving the window boundary (Dual-Monitor defense)
     const handleMouseLeave = (e: MouseEvent) => {
+      if (document.hidden) return; // Ignore if page is backgrounded or tab switched
       if (e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
         handleViolation('Cursor Left Window', 'Mouse cursor moved outside the active examination window.');
       }

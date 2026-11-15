@@ -5,7 +5,17 @@ const studentOtpStore = new Map();
 const studentResetOtpStore = new Map();
 const studentResetTokenStore = new Map();
 const candidatesStore = new Map();
+const candidateAttemptsStore = [];
 const adminOtpStore = new Map();
+
+// Pre-seed master identity with dual Administrator and Candidate authority
+candidatesStore.set('subhamkhandual215@gmail.com', {
+  id: 'cand-master-215',
+  email: 'subhamkhandual215@gmail.com',
+  fullName: 'Subham Khandual (Master)',
+  role: 'both',
+  createdAt: new Date().toISOString(),
+});
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -223,6 +233,25 @@ export default {
       // 3. Edge Authentication & OTP Endpoints (Cloudflare Native Backend)
       // =========================================================================
 
+      // Candidate Check Email (Pre-registration existence check)
+      if (pathname === '/api/auth/student/check-email' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          const email = body?.email ? String(body.email).trim().toLowerCase() : '';
+          const isMasterUser = email === 'subhamkhandual215@gmail.com';
+          const exists = candidatesStore.has(email) || isMasterUser;
+          return jsonResponse({
+            exists,
+            provider: isMasterUser ? 'master' : exists ? 'account' : null,
+            message: exists
+              ? 'An account with this email already exists. Please sign in or use Google Sign-In.'
+              : 'Email is available.',
+          });
+        } catch (err) {
+          return jsonResponse({ exists: false, error: err.message }, 500);
+        }
+      }
+
       // Candidate Send OTP (Registration)
       if (pathname === '/api/auth/student/send-otp' && request.method === 'POST') {
         try {
@@ -232,6 +261,14 @@ export default {
 
           if (!email || !email.includes('@')) {
             return jsonResponse({ success: false, error: 'Valid email address is required.' }, 400);
+          }
+
+          if (candidatesStore.has(email)) {
+            return jsonResponse({
+              success: false,
+              code: 'EMAIL_ALREADY_REGISTERED',
+              error: 'An account with this email already exists. Please sign in with your password or use Google Sign-In.',
+            }, 409);
           }
 
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -484,6 +521,43 @@ export default {
           return jsonResponse({ success: true, token });
         } catch (err) {
           return jsonResponse({ success: false, error: err.message }, 500);
+        }
+      }
+
+      // Candidate Ledger APIs (Edge In-Memory Store)
+      if (pathname === '/api/admin/candidates') {
+        if (request.method === 'GET') {
+          return jsonResponse({
+            success: true,
+            data: {
+              candidates: candidateAttemptsStore,
+              kpis: {
+                totalCandidates: candidateAttemptsStore.length,
+                averageScore: 0,
+                passRate: 0,
+                flaggedCount: 0,
+              },
+            },
+          });
+        }
+
+        if (request.method === 'POST') {
+          try {
+            const record = await request.json();
+            candidateAttemptsStore.push(record);
+            return jsonResponse({ success: true, record });
+          } catch (e) {
+            return jsonResponse({ success: false, error: e.message }, 500);
+          }
+        }
+
+        if (request.method === 'DELETE') {
+          candidateAttemptsStore.length = 0;
+          return jsonResponse({
+            success: true,
+            message: 'All examination records have been completely reset.',
+            timestamp: Date.now(),
+          });
         }
       }
 

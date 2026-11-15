@@ -16,6 +16,7 @@ import {
   EyeOff,
   X,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Circle,
   UserPlus,
@@ -49,6 +50,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [existingGoogleAccountNotice, setExistingGoogleAccountNotice] = useState<string | null>(null);
 
   // Student Registration Email OTP States: 'details' (Enter Data) | 'verify_email' (Enter 6-digit OTP)
   const [studentRegStep, setStudentRegStep] = useState<'details' | 'verify_email'>('details');
@@ -285,6 +287,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     if (e) e.preventDefault();
     setErrorMessage(null);
     setSuccessNotice(null);
+    setExistingGoogleAccountNotice(null);
 
     if (!nameValidation.isValid) {
       setErrorMessage(nameValidation.error || 'Please enter a valid legal candidate name.');
@@ -295,6 +298,44 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     if (!emailToUse || !emailToUse.includes('@')) {
       setErrorMessage('Please enter a valid email address.');
       return;
+    }
+
+    // Check if account already exists via Google SSO
+    if (typeof window !== 'undefined') {
+      const isGoogleAccount =
+        localStorage.getItem('mines_auth_provider_' + emailToUse) === 'google' ||
+        localStorage.getItem('mines_sso_' + emailToUse) === 'google';
+
+      if (isGoogleAccount) {
+        setExistingGoogleAccountNotice(
+          `An account for ${emailToUse} already exists via Google Sign-In. Please click "Continue with Google" below to sign in directly.`
+        );
+        setErrorMessage(
+          `This email (${emailToUse}) is already registered via Google Sign-In. Please click "Continue with Google" below.`
+        );
+        return;
+      }
+    }
+
+    // Check if account exists on backend before sending OTP
+    try {
+      const checkRes = await fetch('/api/auth/student/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailToUse }),
+      });
+      const checkData = await checkRes.json();
+      if (checkData.exists) {
+        setExistingGoogleAccountNotice(
+          `An account for ${emailToUse} already exists. Please sign in with your password or click "Continue with Google".`
+        );
+        setErrorMessage(
+          `This email is already registered. Please sign in or use Continue with Google.`
+        );
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('Check email check bypassed:', checkErr);
     }
 
     if (!passwordCriteria.isValid) {
@@ -322,6 +363,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       const data = await res.json();
 
       if (!res.ok || !data.success) {
+        if (data.code === 'EMAIL_ALREADY_REGISTERED' || res.status === 409) {
+          setExistingGoogleAccountNotice(
+            `An account for ${emailToUse} already exists. Please click "Continue with Google" or use Sign In.`
+          );
+        }
         setErrorMessage(data.error || 'Failed to dispatch verification code.');
         setIsStudentOtpSending(false);
         return;
@@ -391,6 +437,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
           token
         );
       } catch (fbErr: any) {
+        if (fbErr?.code === 'auth/email-already-in-use') {
+          setErrorMessage('This email is already registered. Please sign in with your password or use Continue with Google.');
+          setExistingGoogleAccountNotice('An account for this email already exists via Google Sign-In. Please click "Continue with Google" below.');
+          setIsStudentOtpVerifying(false);
+          return;
+        }
         console.warn('Firebase direct signup fallback:', fbErr);
         const dummyToken = 'cand-jwt-' + Buffer.from(emailToUse + ':' + Date.now()).toString('base64');
         setUser(
@@ -733,6 +785,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
         token
       );
 
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mines_auth_provider_' + emailToUse, 'password');
+      }
+
       setIsLoading(false);
       if (onSuccess) onSuccess();
       onClose();
@@ -789,6 +845,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
         },
         token
       );
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mines_auth_provider_' + googleEmail, 'google');
+        localStorage.setItem('mines_sso_' + googleEmail, 'google');
+      }
 
       setIsLoading(false);
       if (onSuccess) onSuccess();
@@ -899,6 +960,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                   setRoleTab('student');
                   setErrorMessage(null);
                   setSuccessNotice(null);
+                  setExistingGoogleAccountNotice(null);
                   setStudentRegStep('details');
                   setStudentView('normal');
                 }}
@@ -917,6 +979,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                   setRoleTab('admin');
                   setErrorMessage(null);
                   setSuccessNotice(null);
+                  setExistingGoogleAccountNotice(null);
                   setIdentifier('');
                   if (isAdminSetupComplete === false) {
                     setAdminView('first_time_setup');
@@ -941,6 +1004,31 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
             <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/60 flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* Existing Google / Duplicate Account Notice with 1-Click Action */}
+          {existingGoogleAccountNotice && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2.5">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed font-inter font-medium text-amber-200">
+                  {existingGoogleAccountNotice}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold font-inter text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                <span>Continue with Google</span>
+              </button>
             </div>
           )}
 
@@ -1756,6 +1844,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                           onClick={() => {
                             setAuthMode('register');
                             setErrorMessage(null);
+                            setExistingGoogleAccountNotice(null);
                           }}
                           className="font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 underline underline-offset-2 cursor-pointer transition-colors"
                         >
@@ -1770,6 +1859,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                           onClick={() => {
                             setAuthMode('signin');
                             setErrorMessage(null);
+                            setExistingGoogleAccountNotice(null);
                           }}
                           className="font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 underline underline-offset-2 cursor-pointer transition-colors"
                         >

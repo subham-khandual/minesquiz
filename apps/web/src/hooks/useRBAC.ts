@@ -18,9 +18,10 @@ export function useRBAC(): RBACPermissions {
   const { user } = useAuthStore();
 
   const role = user?.role || null;
+  const isMasterUser = (user?.email || '').toLowerCase() === 'subhamkhandual215@gmail.com';
   const isAuthenticated = !!user;
-  const isStudent = role === 'student';
-  const isAdmin = role === 'admin';
+  const isStudent = role === 'student' || isMasterUser;
+  const isAdmin = role === 'admin' || isMasterUser;
 
   return {
     user,
@@ -28,9 +29,9 @@ export function useRBAC(): RBACPermissions {
     isAuthenticated,
     isStudent,
     isAdmin,
-    // RBAC Business Rules
-    canTakeExam: !isAuthenticated || isStudent,
-    canManageQuizzes: isAdmin,
-    canViewAuditLogs: isAdmin,
+    // RBAC Business Rules (Master user has dual student and admin privileges)
+    canTakeExam: !isAuthenticated || isStudent || isMasterUser,
+    canManageQuizzes: isAdmin || isMasterUser,
+    canViewAuditLogs: isAdmin || isMasterUser,
   };
 }

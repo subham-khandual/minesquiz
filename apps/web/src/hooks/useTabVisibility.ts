@@ -12,9 +12,20 @@ export function useTabVisibility(onTabSwitch: () => void) {
     };
 
     const handleWindowBlur = () => {
-      // Only count blur if the page is actually hidden/backgrounded
-      // On mobile devices, window.blur fires during touch gestures, virtual keyboards, and permission prompts
-      if (document.hidden) {
+      const isMobile =
+        typeof window !== 'undefined' &&
+        (window.innerWidth <= 768 ||
+          'ontouchstart' in window ||
+          (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
+
+      if (isMobile) {
+        // On mobile devices, only count blur if the page is actually hidden or backgrounded
+        if (document.hidden) {
+          switchCountRef.current += 1;
+          onTabSwitch();
+        }
+      } else {
+        // On desktop, window blur indicates candidate switched focus outside the active exam window
         switchCountRef.current += 1;
         onTabSwitch();
       }
