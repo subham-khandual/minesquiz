@@ -34,6 +34,8 @@ MinesQuiz is an automated statutory assessment platform designed to prepare cand
 * MIN-102: Mine Ventilation, Gases Detection, Flame Safety Lamps, Methanometers, Air Crossing, Auxiliary Fans, Dust Suppression, and Spontaneous Combustion.
 * MIN-103: Winning and Working, Underground Development, Bord and Pillar, Longwall Mining, Open Cast Equipment, Blasting Physics, Explosives Regulations.
 * MIN-104: Mine Surveying, Correlation Surveys, Triangulation, Strata Control, Subsidence Engineering, Geotechnical Slope Stability.
+* MIN-105: Mine Machinery, Electrical Equipment, Pumping, Haulage, Winders, Conveyors, and CMR 2017 Chapter XIII / Chapter XIV standards.
+* MIN-106: Mine Fires, Inundation, Emergency Rescue Operations, Self-Rescuers, Mine Inundation Prevention, Emergency Escape Routes, and CMR 2017 Regulations.
 
 ## Contact & Institutional Support
 For queries regarding statutory question banks, institutional proctoring licensing, or technical assistance:

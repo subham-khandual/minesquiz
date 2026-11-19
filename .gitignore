@@ -28,6 +28,8 @@ pnpm-debug.log*
 *.admin-auth.json
 .candidates-auth.json
 *.candidates-auth.json
+.attempts-ledger.json
+*.attempts-ledger.json
 
 # OS files
 .DS_Store

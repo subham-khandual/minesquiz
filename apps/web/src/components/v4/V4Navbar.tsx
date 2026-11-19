@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
 import { Menu, X, User, ArrowRight, LogOut } from 'lucide-react';
@@ -15,6 +15,13 @@ interface V4NavbarProps {
 export const V4Navbar: React.FC<V4NavbarProps> = ({ onLoginClick, onStartExamClick }) => {
   const { user, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currentUser = mounted ? user : null;
 
   const navLinks = [
     { label: 'Home', href: '/' },
@@ -67,29 +74,29 @@ export const V4Navbar: React.FC<V4NavbarProps> = ({ onLoginClick, onStartExamCli
 
           {/* Right Action Buttons */}
           <div className="hidden sm:flex items-center gap-3.5">
-            {user ? (
+            {currentUser ? (
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold font-inter">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      user.role === 'admin' ? 'bg-purple-500' : 'bg-emerald-500'
+                      currentUser.role === 'admin' ? 'bg-purple-500' : 'bg-emerald-500'
                     }`}
                   />
                   <span className="font-bold text-[#1E1B4B]">
-                    {user.displayName?.split(' ')[0] || user.email?.split('@')[0]}
+                    {currentUser.displayName?.split(' ')[0] || currentUser.email?.split('@')[0]}
                   </span>
                   <span
                     className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-black ${
-                      user.role === 'admin'
+                      currentUser.role === 'admin'
                         ? 'bg-purple-100 text-purple-700'
                         : 'bg-emerald-100 text-emerald-700'
                     }`}
                   >
-                    {user.role}
+                    {currentUser.role}
                   </span>
                 </div>
 
-                {user.role === 'admin' ? (
+                {currentUser.role === 'admin' ? (
                   <Link
                     href="/admin"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs"
@@ -176,26 +183,26 @@ export const V4Navbar: React.FC<V4NavbarProps> = ({ onLoginClick, onStartExamCli
             </div>
 
             <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
-              {user ? (
+              {currentUser ? (
                 <>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="flex items-center gap-2 font-inter text-xs font-semibold">
                     <span
                       className={`w-2.5 h-2.5 rounded-full ${
-                        user.role === 'admin' ? 'bg-purple-500' : 'bg-emerald-500'
+                        currentUser.role === 'admin' ? 'bg-purple-500' : 'bg-emerald-500'
                       }`}
                     />
                     <span className="font-bold text-[#1E1B4B]">
-                      {user.displayName || user.email}
+                      {currentUser.displayName || currentUser.email}
                     </span>
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-black ${
-                        user.role === 'admin'
+                        currentUser.role === 'admin'
                           ? 'bg-purple-100 text-purple-700'
                           : 'bg-emerald-100 text-emerald-700'
                       }`}
                     >
-                      {user.role}
+                      {currentUser.role}
                     </span>
                   </div>
                   <button
@@ -211,11 +218,11 @@ export const V4Navbar: React.FC<V4NavbarProps> = ({ onLoginClick, onStartExamCli
                   </button>
                 </div>
                 <Link
-                  href={user.role === 'admin' ? '/admin' : '/candidate'}
+                  href={currentUser.role === 'admin' ? '/admin' : '/candidate'}
                   onClick={() => setMobileMenuOpen(false)}
                   className="font-inter w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-slate-900 rounded-xl"
                 >
-                  <span>{user.role === 'admin' ? 'Open Admin Console' : 'Open Candidate Portal'}</span>
+                  <span>{currentUser.role === 'admin' ? 'Open Admin Console' : 'Open Candidate Portal'}</span>
                 </Link>
                 </>
               ) : (

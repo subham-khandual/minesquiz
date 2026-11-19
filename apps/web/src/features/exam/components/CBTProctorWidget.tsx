@@ -33,6 +33,7 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
     maxAllowedViolations,
     faceAbsenceCount,
     maxAllowedFaceAbsences,
+    lipMovementCount,
     setCameraActive,
   } = useProctorStore();
 
@@ -44,6 +45,8 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
     pitch,
     poseStatus,
     faceBox,
+    isBaselineCalibrated,
+    calibrationProgress,
   } = useFaceDetector({
     videoRef,
     attemptId,
@@ -53,9 +56,13 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
 
   const { isNoiseHigh, currentVolume } = useNoiseDetector({
     enabled: hasPermission && isLiveProctored && isActive,
-    noiseThresholdDb: 70,
+    stream,
+    noiseThresholdDb: 38,
     onNoiseViolation: (vol) => {
-      reportWarning('audio_detected', `Background sound detected (${vol} dB). Please keep your surroundings quiet.`);
+      reportWarning(
+        'audio_detected',
+        `Background sound or voice detected (${vol} dB). Please maintain absolute silence.`
+      );
     },
   });
 
@@ -168,14 +175,29 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Camera Active</span>
           </div>
-          <div className="flex items-center gap-1.5 text-slate-700 font-medium">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            <span>Mic Active</span>
+          <div className="flex items-center gap-1.5 font-medium">
+            {isBaselineCalibrated ? (
+              <>
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span className="text-emerald-700">Biometric ID: Verified ✓</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-amber-700">Biometric: Calibrating ({calibrationProgress}/8)</span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-1.5 text-slate-700 font-medium">
             <Wifi className="w-3 h-3 text-emerald-600" />
             <span>Connection: Stable</span>
           </div>
+          {lipMovementCount > 0 && (
+            <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
+              <AlertTriangle className="w-3 h-3 text-amber-500 animate-pulse" />
+              <span>Mouth: Warning Active (1/2)</span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -232,6 +254,29 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
           </div>
         )}
 
+        {/* Safe Center Focus Reticle Oval */}
+        {hasPermission && (
+          <div
+            className={`absolute pointer-events-none rounded-[50%] border-2 transition-all duration-200 ${
+              poseStatus === 'center'
+                ? 'border-emerald-400/40 bg-emerald-500/5'
+                : poseStatus === 'no_face' || poseStatus === 'multiple'
+                ? 'border-rose-500/60 bg-rose-500/10 animate-pulse'
+                : 'border-amber-400/70 bg-amber-400/10'
+            }`}
+            style={{
+              left: '22%',
+              top: '12%',
+              width: '56%',
+              height: '76%',
+            }}
+          >
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-900/80 text-white whitespace-nowrap shadow-xs">
+              {poseStatus === 'center' ? 'Center Focus' : poseStatus === 'no_face' ? 'Face Absent' : poseStatus === 'multiple' ? 'Multiple Faces' : 'Out of Reticle'}
+            </div>
+          </div>
+        )}
+
         {/* Green Face Tracking Bounding Box */}
         {hasPermission && faceBox && (
           <div
@@ -260,6 +305,26 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
 
       {/* Telemetry Status Checklist below video */}
       <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2 text-xs font-inter">
+        {/* Biometric ID Verification */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-medium">
+            {isBaselineCalibrated ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-emerald-700">Biometric ID: Verified ✓</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-amber-700">Calibrating Face ID ({calibrationProgress}/8)</span>
+              </>
+            )}
+          </div>
+          <span className="font-mono text-[10px] text-slate-400">
+            {isBaselineCalibrated ? 'Locked' : 'Sampling'}
+          </span>
+        </div>
+
         {/* Microphone Active */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-slate-700 font-medium">
@@ -267,9 +332,9 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
             <span>Microphone Active</span>
           </div>
           <div className="flex items-center gap-0.5">
-            <span className={`w-1 h-2 rounded-full ${currentVolume > 20 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            <span className={`w-1 h-3 rounded-full ${currentVolume > 40 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            <span className={`w-1 h-4 rounded-full ${currentVolume > 60 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+            <span className={`w-1 h-2 rounded-full ${currentVolume > 15 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+            <span className={`w-1 h-3 rounded-full ${currentVolume > 25 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+            <span className={`w-1 h-4 rounded-full ${currentVolume > 38 ? 'bg-rose-500 animate-pulse' : 'bg-slate-300'}`} />
           </div>
         </div>
 
@@ -280,6 +345,26 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
             <span>Connection: Stable</span>
           </div>
           <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+        </div>
+
+        {/* Mouth / Whisper Tracking */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+            {lipMovementCount === 0 ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Mouth / Whisper: Clear</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <span className="text-amber-700 font-semibold">Mouth: Warning Active</span>
+              </>
+            )}
+          </div>
+          <span className="font-mono text-[10px] text-slate-400">
+            {lipMovementCount === 0 ? 'Silent' : `${lipMovementCount}/2 Strikes`}
+          </span>
         </div>
 
         {/* Violations Count */}

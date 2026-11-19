@@ -12,6 +12,7 @@ interface CBTToolbarProps {
   onNext: () => void;
   onToggleMarkForReview: () => void;
   onClearResponse: () => void;
+  isDisabled?: boolean;
 }
 
 export const CBTToolbar: React.FC<CBTToolbarProps> = ({
@@ -23,21 +24,24 @@ export const CBTToolbar: React.FC<CBTToolbarProps> = ({
   onNext,
   onToggleMarkForReview,
   onClearResponse,
+  isDisabled = false,
 }) => {
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === totalQuestions - 1;
 
   return (
-    <div className="w-full bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5 select-none mt-3 sm:mt-4">
+    <div className={`w-full bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5 select-none mt-3 sm:mt-4 transition-opacity ${
+      isDisabled ? 'pointer-events-none opacity-45 select-none' : ''
+    }`}>
       {/* Left Cluster: Previous, Mark for Review, Clear Response */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Previous Button */}
         <button
           type="button"
-          disabled={isFirst}
+          disabled={isDisabled || isFirst}
           onClick={onPrevious}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-poppins font-semibold border transition-all cursor-pointer ${
-            isFirst
+            isDisabled || isFirst
               ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
               : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-400 active:scale-95'
           }`}
@@ -49,6 +53,7 @@ export const CBTToolbar: React.FC<CBTToolbarProps> = ({
         {/* Mark for Review Button */}
         <button
           type="button"
+          disabled={isDisabled}
           onClick={onToggleMarkForReview}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-poppins font-semibold border transition-all cursor-pointer ${
             isMarkedForReview
@@ -68,10 +73,10 @@ export const CBTToolbar: React.FC<CBTToolbarProps> = ({
         {/* Clear Response Button */}
         <button
           type="button"
-          disabled={!hasAnswer}
+          disabled={isDisabled || !hasAnswer}
           onClick={onClearResponse}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-poppins font-semibold border transition-all cursor-pointer ${
-            !hasAnswer
+            isDisabled || !hasAnswer
               ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
               : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-400 active:scale-95'
           }`}
@@ -86,8 +91,13 @@ export const CBTToolbar: React.FC<CBTToolbarProps> = ({
       {/* Right Cluster: Save & Next (or Submit on last question) */}
       <button
         type="button"
+        disabled={isDisabled}
         onClick={onNext}
-        className="flex items-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-poppins font-bold text-xs sm:text-sm shadow-md shadow-blue-600/30 active:scale-95 transition-all cursor-pointer ml-auto"
+        className={`flex items-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl text-white font-poppins font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer ml-auto ${
+          isDisabled
+            ? 'opacity-50 cursor-not-allowed bg-slate-400'
+            : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/30 active:scale-95'
+        }`}
       >
         <span>{isLast ? 'Submit' : 'Save & Next'}</span>
         {!isLast && <ChevronRight className="w-4 h-4" />}

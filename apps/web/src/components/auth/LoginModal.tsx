@@ -439,7 +439,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           },
-          token
+          token,
+          rememberMe
         );
       } catch (fbErr: any) {
         if (fbErr?.code === 'auth/email-already-in-use') {
@@ -460,7 +461,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           },
-          dummyToken
+          dummyToken,
+          rememberMe
         );
       }
 
@@ -658,7 +660,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       }
 
       setIsAdminSetupComplete(true);
-      setUser(data.user, data.token);
+      setUser(data.user, data.token, rememberMe);
 
       setIsLoading(false);
       if (onSuccess) onSuccess();
@@ -700,6 +702,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
           body: JSON.stringify({
             email: emailToUse,
             password: password,
+            rememberMe,
           }),
         });
 
@@ -717,7 +720,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
           return;
         }
 
-        setUser(data.user, data.token);
+        setUser(data.user, data.token, rememberMe);
 
         setIsLoading(false);
         if (onSuccess) onSuccess();
@@ -755,13 +758,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
         body: JSON.stringify({
           email: emailToUse,
           password: password,
+          rememberMe,
         }),
       });
 
       const loginData = await loginRes.json();
 
       if (loginRes.ok && loginData.success && loginData.user) {
-        setUser(loginData.user, loginData.token);
+        setUser(loginData.user, loginData.token, rememberMe);
         setIsLoading(false);
         if (onSuccess) onSuccess();
         onClose();
@@ -787,7 +791,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
-        token
+        token,
+        rememberMe
       );
 
       if (typeof window !== 'undefined') {
@@ -851,7 +856,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
-        token
+        token,
+        rememberMe
       );
 
       if (typeof window !== 'undefined') {

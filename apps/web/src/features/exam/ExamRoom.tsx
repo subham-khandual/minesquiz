@@ -16,6 +16,7 @@ import { useScreenWakeLock } from '../../hooks/useScreenWakeLock';
 import { yieldToMainThread } from '../../lib/performanceYield';
 import { MINING_STATUTORY_QUESTIONS } from '../../data/miningQuestions';
 import { generateCandidateExamSession } from '../../lib/questionSampling';
+import { APP_CONFIG } from '../../config/appConfig';
 import {
   CBTHeader,
 } from './components/CBTHeader';
@@ -75,7 +76,14 @@ export const ExamRoom: React.FC = () => {
         const cached = sessionStorage.getItem('mines_active_quiz_session');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (parsed && parsed.quiz && parsed.attempt) {
+          const pathParts = window.location.pathname.split('/');
+          const routeQuizId = pathParts[pathParts.length - 1];
+          if (
+            parsed &&
+            parsed.quiz &&
+            parsed.attempt &&
+            (!routeQuizId || routeQuizId === parsed.quiz.id)
+          ) {
             setQuizSession(parsed.quiz, parsed.attempt, parsed.masterQuestions || []);
             return;
           }
@@ -92,8 +100,14 @@ export const ExamRoom: React.FC = () => {
       const subjectCode = cleanCode || 'MIN-ALL';
       const mode = isLive ? 'live' : 'mock';
 
-      const candidateEmail = localStorage.getItem('mines_candidate_email') || 'subhamkhandual215@gmail.com';
-      const candidateName = localStorage.getItem('mines_candidate_name') || 'Candidate Student';
+      const candidateEmail =
+        sessionStorage.getItem('mines_candidate_email') ||
+        localStorage.getItem('mines_candidate_email') ||
+        'subhamkhandual215@gmail.com';
+      const candidateName =
+        sessionStorage.getItem('mines_candidate_name') ||
+        localStorage.getItem('mines_candidate_name') ||
+        'Candidate Student';
 
       const { quiz, rawMasterQuestionsForScoring } = generateCandidateExamSession({
         subjectCode,
@@ -127,28 +141,74 @@ export const ExamRoom: React.FC = () => {
     }
   }, [currentQuiz, setQuizSession]);
 
+  // Deep-Link Barrier: Verifies server ledger to prevent direct URL bypass into completed statutory papers
+  useEffect(() => {
+    if (!mounted || !currentQuiz || !activeAttempt) return;
+
+    const isLive = Boolean(
+      currentQuiz.id?.includes('-live') ||
+        (!currentQuiz.id?.includes('-mock') && currentQuiz.proctoringEnabled)
+    );
+    const candidateEmail = activeAttempt.userEmail;
+
+    if (!isLive || !candidateEmail) return;
+    if (APP_CONFIG.isMasterEmail(candidateEmail)) return;
+
+    const quizId = currentQuiz.id || '';
+    const subjectMatch = quizId.match(/quiz-(min-[a-z0-9]+)-/i);
+    const subjectCode = subjectMatch ? subjectMatch[1].toUpperCase() : 'MIN-ALL';
+
+    fetch(
+      `/api/candidate/subject-status?email=${encodeURIComponent(candidateEmail)}&subjectCode=${encodeURIComponent(subjectCode)}&mode=live`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.canAttempt === false) {
+          alert(
+            data.reason ||
+              `Single Attempt Enforcement: You have already completed this statutory examination paper (${subjectCode}). Direct URL bypass is prohibited.`
+          );
+          router.replace('/candidate');
+        }
+      })
+      .catch((err) => {
+        console.warn('[ExamRoom] Deep-link verification notice:', err);
+      });
+  }, [mounted, currentQuiz, activeAttempt, router]);
+
   const {
     reportViolation,
     reportWarning,
+    terminateImmediately,
     isTerminated,
+    resetProctor,
     violationsCount,
     maxAllowedViolations,
     faceAbsenceCount,
     maxAllowedFaceAbsences,
     activeAlert,
+    activeAlertSeverity,
   } = useProctorStore();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Automated Exam Termination Countdown
+  const [terminationCountdown, setTerminationCountdown] = useState<number>(3);
 
   // Tab Switch Violation & Grace Period States (Option B: 1 Warning with 10s Timer + 2nd Strike Disqualification)
   const [tabSwitchCount, setTabSwitchCount] = useState<number>(0);
   const [showTabSwitchWarning, setShowTabSwitchWarning] = useState<boolean>(false);
   const [tabSwitchCountdown, setTabSwitchCountdown] = useState<number>(10);
   const lastTabSwitchTimeRef = useRef<number>(0);
+  const hasSyncedTerminationRef = useRef<boolean>(false);
 
-  // Determine if this session is an official Live Proctored Exam or self-paced Mock Practice
-  const isLiveProctored = Boolean(currentQuiz?.proctoringEnabled && !currentQuiz?.id?.includes('-mock'));
+  // Lock question answering whenever proctoring strike / alert is active
+  const isQuestionLocked = isTerminated || showTabSwitchWarning || activeAlertSeverity === 'critical';
+
+  // Determine if this session is an official Live Proctored Exam or proctored practice session
+  const isStrictLive = Boolean(!currentQuiz?.id?.includes('-mock'));
+  const isLiveProctored = Boolean(currentQuiz?.proctoringEnabled ?? true);
 
   // Countdown Timer Interval
   useEffect(() => {
@@ -191,12 +251,16 @@ export const ExamRoom: React.FC = () => {
       } else {
         setShowTabSwitchWarning(false);
         const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
-        reportViolation(
-          'tab_switch',
-          'Final Disqualification: Multiple tab switches detected (Strike 2 of 2). Examination terminated.'
+        terminateImmediately(
+          'Final Disqualification: Multiple tab switches detected (Strike 2 of 2). Examination terminated.',
+          'tab_switch'
         );
         if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
           localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+          const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+          try {
+            document.cookie = `${termKey}=true; path=/; max-age=86400; SameSite=Strict`;
+          } catch {}
         }
       }
 
@@ -214,12 +278,16 @@ export const ExamRoom: React.FC = () => {
           clearInterval(timer);
           setShowTabSwitchWarning(false);
           const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
-          reportViolation(
-            'tab_switch',
-            'Disqualification: Failed to resume examination within the 10-second warning window.'
+          terminateImmediately(
+            'Disqualification: Failed to resume examination within the 10-second warning window.',
+            'tab_switch'
           );
           if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
             localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+            const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+            try {
+              document.cookie = `${termKey}=true; path=/; max-age=86400; SameSite=Strict`;
+            } catch {}
           }
           return 0;
         }
@@ -228,7 +296,7 @@ export const ExamRoom: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showTabSwitchWarning, isTerminated, reportViolation, activeAttempt, currentQuiz]);
+  }, [showTabSwitchWarning, isTerminated, terminateImmediately, activeAttempt, currentQuiz]);
 
   const handleResumeFromTabSwitch = async () => {
     setShowTabSwitchWarning(false);
@@ -246,15 +314,6 @@ export const ExamRoom: React.FC = () => {
 
   // Audio Proctoring: Candidate room audio monitoring verified under DGMS standards
   // Note: Active stream, VU meter, and audio_detected events are managed in CBTProctorWidget
-  const handleNoiseViolation = useCallback((dB: number) => {
-    reportWarning('audio_detected', `Elevated ambient noise (${dB} dB) detected in room. Please maintain silence.`);
-  }, [reportWarning]);
-
-  useNoiseDetector({
-    enabled: false,
-    noiseThresholdDb: 70,
-    onNoiseViolation: handleNoiseViolation,
-  });
 
   // Network Guard: Monitor internet connectivity
   const { isOnline } = useNetworkStatus();
@@ -264,26 +323,58 @@ export const ExamRoom: React.FC = () => {
     enabled: !isTerminated,
   });
 
+  // Hardware Track Cleanup Failsafe on window unload or tab close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      try {
+        if ((window as any).__stopAllWebcamHardware) {
+          (window as any).__stopAllWebcamHardware();
+        }
+        if ((window as any).__stopAllAudioHardware) {
+          (window as any).__stopAllAudioHardware();
+        }
+      } catch {}
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, []);
+
   // Check persistent termination lock on mount
   useEffect(() => {
     if (activeAttempt?.userEmail && currentQuiz?.id && typeof window !== 'undefined') {
-      const isMasterUser = activeAttempt.userEmail.toLowerCase() === 'subhamkhandual215@gmail.com';
+      const isMasterUser = APP_CONFIG.isMasterEmail(activeAttempt.userEmail);
       if (!isMasterUser) {
         const wasTerminated = localStorage.getItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`);
+        const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
         let cookieTerminated = false;
         try {
-          cookieTerminated = typeof document !== 'undefined' && document.cookie.includes(`mines_term_${btoa(activeAttempt.userEmail).replace(/=/g, '')}=true`);
+          cookieTerminated = typeof document !== 'undefined' && document.cookie.includes(`${termKey}=true`);
         } catch {}
-        if ((wasTerminated || cookieTerminated) && !isTerminated) {
-          reportViolation('tab_switch', 'Previous session was disqualified and permanently terminated.');
+
+        if (wasTerminated || cookieTerminated) {
+          if (!isTerminated) {
+            terminateImmediately('Previous session was disqualified and permanently terminated for this subject.', 'tab_switch');
+          }
+        } else if (isTerminated) {
+          // Independent Subject Isolation: Reset in-memory termination for a fresh non-terminated subject
+          resetProctor();
+          setTerminationCountdown(3);
         }
+      } else if (isTerminated) {
+        resetProctor();
+        setTerminationCountdown(3);
       }
     }
-  }, [activeAttempt, currentQuiz, isTerminated, reportViolation]);
+  }, [activeAttempt, currentQuiz, isTerminated, terminateImmediately, resetProctor]);
 
-  // Persist termination immediately and release hardware tracks
+  // Persist termination immediately, release hardware tracks, and auto-quit after 3 seconds
   useEffect(() => {
-    if (isTerminated && typeof window !== 'undefined') {
+    if (!isTerminated) return;
+
+    if (typeof window !== 'undefined') {
       try {
         if ((window as any).__stopAllWebcamHardware) {
           (window as any).__stopAllWebcamHardware();
@@ -294,17 +385,74 @@ export const ExamRoom: React.FC = () => {
       } catch {}
 
       if (activeAttempt?.userEmail && currentQuiz?.id) {
-        const isMasterUser = activeAttempt.userEmail.toLowerCase() === 'subhamkhandual215@gmail.com';
+        const isMasterUser = APP_CONFIG.isMasterEmail(activeAttempt.userEmail);
         if (!isMasterUser) {
           localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
           localStorage.setItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`, activeAttempt.id);
+          const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
           try {
-            document.cookie = `mines_term_${btoa(activeAttempt.userEmail).replace(/=/g, '')}=true; path=/; max-age=86400; SameSite=Strict`;
+            document.cookie = APP_CONFIG.buildCookieString(termKey, 'true', 86400);
           } catch {}
+
+          // Also record disqualified attempt to server-side admin ledger (strictly once per termination)
+          if (!hasSyncedTerminationRef.current) {
+            hasSyncedTerminationRef.current = true;
+            const candidateName =
+              activeAttempt.userDisplayName ||
+              sessionStorage.getItem('mines_candidate_name') ||
+              localStorage.getItem('mines_candidate_name') ||
+              'Candidate Student';
+            const subjectCode = currentQuiz.id
+              .replace('quiz-', '')
+              .replace('-live', '')
+              .replace('-mock', '')
+              .toUpperCase();
+
+            fetch('/api/admin/candidates', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: activeAttempt.id,
+                name: candidateName,
+                email: activeAttempt.userEmail,
+                subjectCode,
+                subjectName: currentQuiz.title,
+                mode: 'live',
+                marksObtained: 0,
+                totalMarks: (currentQuiz.questions?.length || 30) * 2,
+                violationsCount: Math.max(1, violationsCount),
+                timeSpentMinutes: 1,
+                status: 'disqualified',
+                isDisqualified: true,
+              }),
+            }).catch(() => {});
+          }
         }
       }
     }
+
+    const timer = setInterval(() => {
+      setTerminationCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, [isTerminated, activeAttempt, currentQuiz]);
+
+  // Dedicated Navigation Effect: Cleanly executes redirect when countdown hits 0
+  useEffect(() => {
+    if (isTerminated && terminationCountdown <= 0) {
+      resetProctor();
+      router.push('/candidate');
+    }
+  }, [isTerminated, terminationCountdown, router, resetProctor]);
+
+  // Clean unmount effect to ensure proctor state does not leak to other statutory subjects
+  useEffect(() => {
+    return () => {
+      hasSyncedTerminationRef.current = false;
+      resetProctor();
+    };
+  }, [resetProctor]);
 
   if (!mounted || !currentQuiz || !activeAttempt || !currentQuiz.questions || currentQuiz.questions.length === 0) {
     return (
@@ -325,7 +473,9 @@ export const ExamRoom: React.FC = () => {
   // Format candidate metadata
   const candidateDisplayName =
     activeAttempt.userDisplayName ||
-    (typeof window !== 'undefined' ? localStorage.getItem('mines_candidate_name') : null) ||
+    (typeof window !== 'undefined'
+      ? sessionStorage.getItem('mines_candidate_name') || localStorage.getItem('mines_candidate_name')
+      : null) ||
     'Candidate Student';
 
   const rollNumber = 'MQ2025' + (activeAttempt.userId?.replace(/\D/g, '').slice(-3) || '001').padStart(3, '0');
@@ -422,8 +572,9 @@ export const ExamRoom: React.FC = () => {
       // Record completed attempt in localStorage and secure browser cookie
       if (typeof window !== 'undefined' && activeAttempt.userEmail) {
         localStorage.setItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`, activeAttempt.id);
+        const subKey = `mines_sub_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
         try {
-          document.cookie = `mines_sub_${btoa(activeAttempt.userEmail).replace(/=/g, '')}=${activeAttempt.id}; path=/; max-age=604800; SameSite=Strict`;
+          document.cookie = APP_CONFIG.buildCookieString(subKey, activeAttempt.id, 604800);
         } catch {}
 
         const reviewBundle = {
@@ -492,7 +643,7 @@ export const ExamRoom: React.FC = () => {
       )}
 
       {/* Fullscreen Overlay Enforcement - Only for Desktop Live Proctored Exams */}
-      {isLiveProctored && !isMobile && !isFullscreen && (
+      {isStrictLive && !isMobile && !isFullscreen && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
           <ShieldAlert className="w-16 h-16 text-amber-400 mb-4 animate-bounce" />
           <h2 className="text-2xl font-black text-white mb-2">Examination Mode Required</h2>
@@ -554,25 +705,33 @@ export const ExamRoom: React.FC = () => {
 
       {/* Disqualification / Terminated Modal */}
       {isTerminated && (
-        <div className="fixed inset-0 z-50 bg-red-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+        <div className="fixed inset-0 z-50 bg-red-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none">
           <AlertTriangle className="w-16 h-16 text-rose-500 mb-4 animate-pulse" />
           <h2 className="text-2xl font-black text-white mb-2">Examination Terminated</h2>
-          <p className="text-rose-200 max-w-md text-sm mb-6 font-inter">
+          <p className="text-rose-200 max-w-md text-sm mb-4 font-inter">
             {activeAlert || (faceAbsenceCount > maxAllowedFaceAbsences
               ? `Your examination has been automatically terminated because candidate left camera view (${maxAllowedFaceAbsences} chances exceeded).`
               : `Your examination has been automatically terminated due to excessive proctoring violations (${violationsCount} of ${maxAllowedViolations} maximum permitted).`)}
           </p>
+          <div className="mb-6 px-4 py-2 rounded-xl bg-red-900/60 border border-red-500/40 text-red-200 text-sm font-semibold flex items-center justify-center gap-2">
+            <span>Auto-quitting exam in</span>
+            <span className="text-xl font-black font-poppins text-white tabular-nums">{terminationCountdown}s</span>
+          </div>
           <Button
             variant="danger"
             size="lg"
             onClick={() => {
               if (typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
                 localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+                const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+                try {
+                  document.cookie = APP_CONFIG.buildCookieString(termKey, 'true', 604800);
+                } catch {}
               }
               router.push('/candidate');
             }}
           >
-            Exit to Candidate Portal
+            Exit to Candidate Portal Now
           </Button>
         </div>
       )}
@@ -619,6 +778,7 @@ export const ExamRoom: React.FC = () => {
               totalQuestions={currentQuiz.questions.length}
               selectedOptionIds={selectedOptions}
               onSelectOption={selectOption}
+              isDisabled={isQuestionLocked}
             />
 
             {/* Action Toolbar (Previous, Review, Clear, Save & Next) - Immediate Thumb Tap */}
@@ -631,6 +791,7 @@ export const ExamRoom: React.FC = () => {
               onNext={handleNext}
               onToggleMarkForReview={() => toggleMarkForReview(currentQuestion.id)}
               onClearResponse={() => clearResponse(currentQuestion.id)}
+              isDisabled={isQuestionLocked}
             />
 
             {/* Compact Inline Proctoring Bar (Below Toolbar) */}
@@ -664,6 +825,7 @@ export const ExamRoom: React.FC = () => {
                 totalQuestions={currentQuiz.questions.length}
                 selectedOptionIds={selectedOptions}
                 onSelectOption={selectOption}
+                isDisabled={isQuestionLocked}
               />
 
               <CBTToolbar
@@ -675,6 +837,7 @@ export const ExamRoom: React.FC = () => {
                 onNext={handleNext}
                 onToggleMarkForReview={() => toggleMarkForReview(currentQuestion.id)}
                 onClearResponse={() => clearResponse(currentQuestion.id)}
+                isDisabled={isQuestionLocked}
               />
             </div>
 

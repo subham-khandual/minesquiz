@@ -2,13 +2,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface UseNoiseDetectorOptions {
   enabled?: boolean;
-  noiseThresholdDb?: number; // e.g. 60-70 dB
+  stream?: MediaStream | null;
+  noiseThresholdDb?: number; // e.g. 35-45 dB
   onNoiseViolation?: (volumeDb: number) => void;
 }
 
 export function useNoiseDetector({
   enabled = true,
-  noiseThresholdDb = 65,
+  stream,
+  noiseThresholdDb = 38,
   onNoiseViolation,
 }: UseNoiseDetectorOptions = {}) {
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
@@ -58,9 +60,16 @@ export function useNoiseDetector({
 
   const startAudio = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioStreamRef.current = stream;
-      setAudioStream(stream);
+      let activeStream: MediaStream;
+
+      if (stream && stream.getAudioTracks().length > 0) {
+        activeStream = stream;
+      } else {
+        activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
+      audioStreamRef.current = activeStream;
+      setAudioStream(activeStream);
       setHasAudioPermission(true);
 
       if (typeof window !== 'undefined') {
@@ -76,7 +85,7 @@ export function useNoiseDetector({
       analyser.smoothingTimeConstant = 0.4;
       analyserRef.current = analyser;
 
-      const source = ctx.createMediaStreamSource(stream);
+      const source = ctx.createMediaStreamSource(activeStream);
       source.connect(analyser);
       sourceRef.current = source;
 
@@ -106,10 +115,10 @@ export function useNoiseDetector({
           if (onViolationRef.current) {
             onViolationRef.current(decibels);
           }
-          // Cooldown for 5 seconds to prevent alert flood
+          // Cooldown for 4 seconds to prevent alert flood
           setTimeout(() => {
             violationCooldownRef.current = false;
-          }, 5000);
+          }, 4000);
         }
 
         animationFrameRef.current = requestAnimationFrame(checkVolume);
@@ -120,7 +129,7 @@ export function useNoiseDetector({
       console.warn('Audio/Mic access denied or unavailable:', err);
       setHasAudioPermission(false);
     }
-  }, [noiseThresholdDb, stopAudio]);
+  }, [stream, noiseThresholdDb, stopAudio]);
 
   useEffect(() => {
     if (enabled) {
@@ -129,7 +138,7 @@ export function useNoiseDetector({
     return () => {
       stopAudio();
     };
-  }, [enabled, startAudio, stopAudio]);
+  }, [enabled, stream, startAudio, stopAudio]);
 
   return {
     hasAudioPermission,

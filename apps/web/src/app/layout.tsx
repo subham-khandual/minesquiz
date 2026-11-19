@@ -102,6 +102,13 @@ export const metadata: Metadata = {
     ],
   },
   manifest: '/manifest.json',
+  other: {
+    'geo.region': 'IN-JH',
+    'geo.placename': 'Dhanbad, India',
+    'geo.position': '23.7957;86.4304',
+    'ICBM': '23.7957, 86.4304',
+    'target-audience': 'Mining Engineering Students, Statutory DGMS Candidates',
+  },
 };
 
 export default function RootLayout({

@@ -20,6 +20,8 @@
 * MIN-102: Mine Ventilation, Fire-Damp & Mine Gases Detection
 * MIN-103: Winning and Working, Explosives & Blasting Practices
 * MIN-104: Mine Surveying, Strata Control & Geotechnical Engineering
+* MIN-105: Mine Machinery, Electrical Equipment & Material Haulage
+* MIN-106: Mine Fires, Inundation, Emergency Rescue & Safety Systems
 
 ## Biometric AI Proctoring Specifications
 * Face Landmark Tracking: MediaPipe 468-point 3D facial mesh tracks face presence and orientation in real-time.

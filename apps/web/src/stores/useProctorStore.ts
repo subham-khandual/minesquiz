@@ -7,6 +7,8 @@ interface ProctorState {
   maxAllowedViolations: number;
   faceAbsenceCount: number;
   maxAllowedFaceAbsences: number;
+  lipMovementCount: number;
+  maxAllowedLipMovements: number;
   activeAlert: string | null;
   activeAlertSeverity?: 'critical' | 'warning' | 'info';
   recentViolations: { type: ProctorViolationType; message: string; timestamp: string }[];
@@ -17,6 +19,8 @@ interface ProctorState {
   reportViolation: (type: ProctorViolationType, message: string) => void;
   reportWarning: (type: ProctorViolationType, message: string) => void;
   reportFaceAbsence: (message?: string) => void;
+  reportLipMovement: (message?: string) => void;
+  terminateImmediately: (reason: string, type?: ProctorViolationType) => void;
   clearActiveAlert: () => void;
   resetProctor: () => void;
 }
@@ -26,7 +30,9 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
   violationsCount: 0,
   maxAllowedViolations: 10,
   faceAbsenceCount: 0,
-  maxAllowedFaceAbsences: 5,
+  maxAllowedFaceAbsences: 1,
+  lipMovementCount: 0,
+  maxAllowedLipMovements: 1,
   activeAlert: null,
   activeAlertSeverity: undefined,
   recentViolations: [],
@@ -65,13 +71,13 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
   },
 
   reportFaceAbsence: (message) => {
-    const { faceAbsenceCount, maxAllowedFaceAbsences, recentViolations } = get();
+    const { faceAbsenceCount, recentViolations } = get();
     const newAbsenceCount = faceAbsenceCount + 1;
-    const isTerminated = newAbsenceCount > maxAllowedFaceAbsences;
+    const isTerminated = newAbsenceCount > 1;
 
     const alertMessage = isTerminated
-      ? `Examination terminated: Face not visible in camera feed (${maxAllowedFaceAbsences} chances exceeded).`
-      : (message || `Notice: Face not clearly centered. Please face your camera (${newAbsenceCount} of ${maxAllowedFaceAbsences}).`);
+      ? 'Disqualification: Face missing from camera (Strike 2 of 2). Examination terminated.'
+      : (message || 'Warning: Face missing from camera (Strike 1 of 2). Please keep your face centered towards the camera.');
 
     set({
       faceAbsenceCount: newAbsenceCount,
@@ -85,6 +91,41 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
     });
   },
 
+  reportLipMovement: (message) => {
+    const { lipMovementCount, recentViolations } = get();
+    const newCount = lipMovementCount + 1;
+    const isTerminated = newCount > 1;
+
+    const alertMessage = isTerminated
+      ? 'Disqualification: Second instance of mouth / lip movement or whispering detected (Strike 2 of 2). Examination terminated.'
+      : (message || 'Warning: Continuous mouth / lip movement or whispering detected (Strike 1 of 2). Speaking or whispering is strictly prohibited.');
+
+    set({
+      lipMovementCount: newCount,
+      activeAlert: alertMessage,
+      activeAlertSeverity: isTerminated ? 'critical' : 'warning',
+      isTerminated,
+      recentViolations: [
+        { type: 'lip_movement', message: alertMessage, timestamp: new Date().toLocaleTimeString() },
+        ...recentViolations.slice(0, 9),
+      ],
+    });
+  },
+
+  terminateImmediately: (reason, type = 'multiple_faces') => {
+    const { recentViolations, lipMovementCount } = get();
+    set({
+      isTerminated: true,
+      activeAlert: reason,
+      activeAlertSeverity: 'critical',
+      lipMovementCount: type === 'lip_movement' ? Math.max(lipMovementCount, 2) : lipMovementCount,
+      recentViolations: [
+        { type, message: reason, timestamp: new Date().toLocaleTimeString() },
+        ...recentViolations.slice(0, 9),
+      ],
+    });
+  },
+
   clearActiveAlert: () => set({ activeAlert: null, activeAlertSeverity: undefined }),
 
   resetProctor: () =>
@@ -92,6 +133,7 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
       isCameraActive: false,
       violationsCount: 0,
       faceAbsenceCount: 0,
+      lipMovementCount: 0,
       activeAlert: null,
       activeAlertSeverity: undefined,
       recentViolations: [],

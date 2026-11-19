@@ -15,6 +15,7 @@
     "clean": "pnpm kill:ports && pnpm clean:next",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
+    "pre-deploy": "node scripts/verify-deployment.js",
     "deploy": "wrangler deploy"
   },
   "keywords": [

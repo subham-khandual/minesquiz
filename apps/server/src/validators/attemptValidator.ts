@@ -32,6 +32,7 @@ export const logViolationSchema = z.object({
     'fullscreen_exit',
     'audio_detected',
     'suspicious_movement',
+    'lip_movement',
   ]),
   severity: z.enum(['low', 'warning', 'critical']).default('warning'),
   confidence: z.number().min(0).max(1).default(1.0),

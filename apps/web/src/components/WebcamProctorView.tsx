@@ -33,6 +33,7 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
     maxAllowedViolations,
     faceAbsenceCount,
     maxAllowedFaceAbsences,
+    lipMovementCount,
     setCameraActive,
   } = useProctorStore();
 
@@ -246,7 +247,29 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
           </span>
         </div>
 
-        {/* 5. Noise Monitor (Advisory) */}
+        {/* 5. Mouth & Whisper Integrity */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-300">Mouth / Whisper Integrity</span>
+          <span
+            className={`flex items-center gap-1 font-medium ${
+              lipMovementCount === 0 ? 'text-emerald-400' : 'text-amber-400 font-bold'
+            }`}
+          >
+            {lipMovementCount === 0 ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Mouth Clear (0 Strikes)</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
+                <span>Mouth Warning Active (1/2 Strikes)</span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* 6. Noise Monitor (Advisory) */}
         <div className="flex items-center justify-between">
           <span className="text-slate-300">Noise Monitor (Advisory)</span>
           <span

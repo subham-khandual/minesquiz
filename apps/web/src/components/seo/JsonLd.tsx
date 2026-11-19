@@ -234,6 +234,32 @@ export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs, includeHo
       }
     : null;
 
+  // 7. Course & Statutory Credential Schema (DGMS Statutory Certification Preparation)
+  const courseSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name: 'DGMS Coal Mines Regulations 2017 Statutory Examination Assessment Suite',
+    description:
+      'Computer-based assessment and training curriculum for First Class and Second Class Mines Manager, Mining Sirdar, and Overman certifications governed by DGMS.',
+    provider: {
+      '@type': 'EducationalOrganization',
+      name: 'MinesQuiz',
+      sameAs: websiteUrl,
+    },
+    educationalCredentialAwarded: [
+      'First Class Mines Manager Certificate of Competency Preparation',
+      'Second Class Mines Manager Certificate of Competency Preparation',
+      'Mining Overman Certificate of Competency Preparation',
+      'Mining Sirdar Certificate of Competency Preparation',
+      'Gas Testing Examination Preparation',
+    ],
+    hasCourseInstance: {
+      '@type': 'CourseInstance',
+      courseMode: 'online',
+      courseWorkload: 'PT60M',
+    },
+  };
+
   return (
     <>
       <script
@@ -255,6 +281,10 @@ export const JsonLd: React.FC<JsonLdProps> = ({ faqItems, breadcrumbs, includeHo
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(courseSchema) }}
       />
       {howToSchema && (
         <script

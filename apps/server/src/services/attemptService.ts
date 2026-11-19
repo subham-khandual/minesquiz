@@ -101,7 +101,7 @@ export class AttemptService {
     if (attempt.endTime) {
       const gracePeriodMs = 30 * 1000;
       if (Date.now() > attempt.endTime.getTime() + gracePeriodMs) {
-        attempt.status = 'expired';
+        attempt.status = 'timed-out';
         await attempt.save();
         throw new Error('EXAM_TIME_EXPIRED: The examination time limit has ended.');
       }

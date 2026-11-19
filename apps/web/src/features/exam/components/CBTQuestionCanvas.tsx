@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Question } from '@mines-quiz/types';
+import { AlertTriangle } from 'lucide-react';
 
 interface CBTQuestionCanvasProps {
   question: Question;
@@ -9,6 +10,7 @@ interface CBTQuestionCanvasProps {
   totalQuestions: number;
   selectedOptionIds: string[];
   onSelectOption: (questionId: string, optionId: string, isMultiple?: boolean) => void;
+  isDisabled?: boolean;
 }
 
 export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
@@ -17,6 +19,7 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
   totalQuestions,
   selectedOptionIds,
   onSelectOption,
+  isDisabled = false,
 }) => {
   const isMultiple = question.type === 'multiple-select';
   const optionLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -25,7 +28,7 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
     <div className="w-full bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-7 flex flex-col justify-between select-none">
       <div>
         {/* =========================================================================
-            QUESTION INFO HEADER: Question X of Y | Marks: +2 | Negative: -0.5
+            QUESTION INFO HEADER: Question X of Y | Marks: +2 | Negative: 0
             ========================================================================= */}
         <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -38,16 +41,24 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
             </span>
           </div>
 
-          {/* Marks Badges (NTA Standard) */}
+          {/* Marks Badges (DGMS Statutory Standard) */}
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-mono font-bold">
-              Marks: +{question.marks || 2}
+              Marks: +{question.marks || 1}
             </span>
-            <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-xs font-mono font-bold">
-              Negative: -0.5
+            <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-mono font-bold">
+              Negative: 0
             </span>
           </div>
         </div>
+
+        {/* Lock Banner when Proctoring Notice / Strike is active */}
+        {isDisabled && (
+          <div className="mt-3 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-300 flex items-center gap-2.5 text-amber-900 text-xs font-inter font-medium animate-pulse">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Options locked: Proctoring alert or strike is active. Resolve notice to resume answering.</span>
+          </div>
+        )}
 
         {/* =========================================================================
             QUESTION STATEMENT TEXT
@@ -66,7 +77,7 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
             RADIO OPTIONS LIST (A, B, C, D)
             Matching reference: Soft blue fill on selected option, clean circular radio
             ========================================================================= */}
-        <div className="space-y-2.5 sm:space-y-3.5">
+        <div className={`space-y-2.5 sm:space-y-3.5 transition-opacity ${isDisabled ? 'pointer-events-none opacity-45 select-none' : ''}`}>
           {question.options.map((opt, oIdx) => {
             const isSelected = selectedOptionIds.includes(opt.id);
             const letter = optionLetters[oIdx] || String.fromCharCode(65 + oIdx);
@@ -74,7 +85,7 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
             return (
               <div
                 key={opt.id}
-                onClick={() => onSelectOption(question.id, opt.id, isMultiple)}
+                onClick={() => !isDisabled && onSelectOption(question.id, opt.id, isMultiple)}
                 className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 cursor-pointer transition-all active:scale-[0.99] min-h-[52px] sm:min-h-[58px] ${
                   isSelected
                     ? 'border-blue-500 bg-blue-50/80 text-slate-950 shadow-sm'

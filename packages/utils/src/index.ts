@@ -125,5 +125,6 @@ export function computeAnswerIntegrityHash(
 
 export * from './validation';
 export * from './gazeEstimator';
+export * from './jwt';
 
 

@@ -105,7 +105,8 @@ export type ProctorViolationType =
   | 'tab_switch'
   | 'fullscreen_exit'
   | 'audio_detected'
-  | 'suspicious_movement';
+  | 'suspicious_movement'
+  | 'lip_movement';
 
 export type ViolationSeverity = 'low' | 'warning' | 'critical';
 

@@ -6,6 +6,7 @@ import {
   verifyAdminPassword,
 } from '../../../../lib/adminAuthStore';
 import { getClientIp, checkRateLimit, resetRateLimit } from '../../../../lib/rateLimit';
+import { createSignedJwt } from '../../../../lib/jwtServer';
 
 export async function POST(request: Request) {
   try {
@@ -92,6 +93,18 @@ export async function POST(request: Request) {
     resetRateLimit(accountLockKey);
     resetRateLimit(`admin_login_ip_${clientIp}`);
 
+    const rememberMe = Boolean(body?.rememberMe);
+    const expiresInSeconds = rememberMe ? 7 * 86400 : 86400;
+    const token = createSignedJwt(
+      {
+        sub: 'admin-super-001',
+        email: SUPER_ADMIN_EMAIL,
+        role: 'admin',
+        displayName: 'Subham Khandual (Admin)',
+      },
+      expiresInSeconds
+    );
+
     return NextResponse.json({
       success: true,
       message: 'Admin authentication successful.',
@@ -104,7 +117,7 @@ export async function POST(request: Request) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-      token: 'admin-jwt-' + Buffer.from(SUPER_ADMIN_EMAIL + ':' + Date.now()).toString('base64'),
+      token,
     });
   } catch (error: any) {
     console.error('API /api/admin/login error:', error);

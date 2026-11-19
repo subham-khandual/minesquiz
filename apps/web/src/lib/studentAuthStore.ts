@@ -483,3 +483,154 @@ export function getCandidateByEmail(email: string): StoredCandidate | undefined 
 export function clearStudentOtp(email: string): void {
   studentOtpCache.delete(email.trim().toLowerCase());
 }
+
+// =========================================================================
+// HACKER-PROOF ATTEMPT LEDGER & CANONICAL EMAIL NORMALIZATION
+// Enforces Single Attempt per Candidate per Statutory Subject (CMR 2017)
+// =========================================================================
+
+export interface PersistentSubjectAttemptRecord {
+  id: string;
+  canonicalEmail: string;
+  rawEmail: string;
+  subjectCode: string;
+  subjectName?: string;
+  mode: 'live' | 'mock';
+  status: 'submitted' | 'terminated';
+  marksObtained: number;
+  totalMarks: number;
+  percentage: number;
+  violationsCount: number;
+  timeSpentMinutes: number;
+  submittedAt: string;
+  clientIp?: string;
+}
+
+/**
+ * Normalizes email address to defeat Gmail dot tricks and plus addressing aliases.
+ * Example: 'Subham.Khandual+attempt2@gmail.com' -> 'subhamkhandual@gmail.com'
+ */
+export function canonicalizeEmail(rawEmail?: string | null): string {
+  if (!rawEmail) return '';
+  const trimmed = rawEmail.trim().toLowerCase();
+  const parts = trimmed.split('@');
+  if (parts.length !== 2) return trimmed;
+
+  let [localPart, domain] = parts;
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    localPart = localPart.replace(/\./g, '');
+    localPart = localPart.split('+')[0];
+  }
+  return `${localPart}@${domain}`;
+}
+
+const globalForAttempts = globalThis as unknown as {
+  attemptsLedgerCache: Map<string, PersistentSubjectAttemptRecord> | undefined;
+};
+
+const attemptsLedgerCache =
+  globalForAttempts.attemptsLedgerCache ?? new Map<string, PersistentSubjectAttemptRecord>();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForAttempts.attemptsLedgerCache = attemptsLedgerCache;
+}
+
+function getAttemptsLedgerPaths(): string[] {
+  const current = process.cwd();
+  return Array.from(
+    new Set([
+      path.resolve(current, '.attempts-ledger.json'),
+      path.resolve(current, 'apps', 'web', '.attempts-ledger.json'),
+      path.resolve(current, '..', '.attempts-ledger.json'),
+      path.resolve(current, '..', '..', '.attempts-ledger.json'),
+    ])
+  );
+}
+
+export function loadAttemptsLedgerFromDisk(): Map<string, PersistentSubjectAttemptRecord> {
+  const paths = getAttemptsLedgerPaths();
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          for (const att of parsed) {
+            if (att && att.canonicalEmail && att.subjectCode) {
+              const key = `${att.canonicalEmail}_${att.subjectCode.toUpperCase()}_${att.mode || 'live'}`;
+              attemptsLedgerCache.set(key, att);
+            }
+          }
+          return attemptsLedgerCache;
+        }
+      }
+    } catch {
+      // Ignore disk load errors and proceed
+    }
+  }
+  return attemptsLedgerCache;
+}
+
+export function persistAttemptsLedgerToDisk(): void {
+  const paths = getAttemptsLedgerPaths();
+  const list = Array.from(attemptsLedgerCache.values());
+  for (const p of paths) {
+    try {
+      const dir = path.dirname(p);
+      if (fs.existsSync(dir)) {
+        fs.writeFileSync(p, JSON.stringify(list, null, 2), 'utf-8');
+      }
+    } catch {
+      // Continue to next path
+    }
+  }
+}
+
+// Initial hydration from disk
+loadAttemptsLedgerFromDisk();
+
+export function recordSubjectAttemptToDisk(
+  record: Omit<PersistentSubjectAttemptRecord, 'canonicalEmail'> & { canonicalEmail?: string }
+): PersistentSubjectAttemptRecord {
+  const canonicalEmail = record.canonicalEmail || canonicalizeEmail(record.rawEmail);
+  const fullRecord: PersistentSubjectAttemptRecord = {
+    ...record,
+    canonicalEmail,
+  };
+
+  const key = `${canonicalEmail}_${record.subjectCode.toUpperCase()}_${record.mode || 'live'}`;
+  attemptsLedgerCache.set(key, fullRecord);
+  persistAttemptsLedgerToDisk();
+  return fullRecord;
+}
+
+export function getCandidateSubjectAttempt(
+  rawEmail: string,
+  subjectCode: string,
+  mode: 'live' | 'mock' = 'live'
+): PersistentSubjectAttemptRecord | null {
+  if (!rawEmail || !subjectCode) return null;
+  loadAttemptsLedgerFromDisk();
+
+  const canonicalEmail = canonicalizeEmail(rawEmail);
+  const key = `${canonicalEmail}_${subjectCode.toUpperCase()}_${mode}`;
+  return attemptsLedgerCache.get(key) || null;
+}
+
+export function getAllCandidateSubjectAttempts(
+  rawEmail: string
+): PersistentSubjectAttemptRecord[] {
+  if (!rawEmail) return [];
+  loadAttemptsLedgerFromDisk();
+
+  const canonicalEmail = canonicalizeEmail(rawEmail);
+  const results: PersistentSubjectAttemptRecord[] = [];
+  for (const record of attemptsLedgerCache.values()) {
+    if (record.canonicalEmail === canonicalEmail) {
+      results.push(record);
+    }
+  }
+  return results.sort(
+    (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+  );
+}

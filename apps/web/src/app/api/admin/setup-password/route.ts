@@ -7,6 +7,7 @@ import {
   setAdminPassword,
 } from '../../../../lib/adminAuthStore';
 import { getClientIp, checkRateLimit } from '../../../../lib/rateLimit';
+import { createSignedJwt } from '../../../../lib/jwtServer';
 
 export async function POST(request: Request) {
   try {
@@ -66,6 +67,16 @@ export async function POST(request: Request) {
     // Consume reset token so it cannot be reused
     consumeResetToken(email, resetToken);
 
+    const token = createSignedJwt(
+      {
+        sub: 'admin-super-001',
+        email: SUPER_ADMIN_EMAIL,
+        role: 'admin',
+        displayName: 'Subham Khandual (Admin)',
+      },
+      86400
+    );
+
     return NextResponse.json({
       success: true,
       message: 'Admin Master Password saved successfully.',
@@ -78,7 +89,7 @@ export async function POST(request: Request) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-      token: 'admin-jwt-' + Buffer.from(SUPER_ADMIN_EMAIL + ':' + Date.now()).toString('base64'),
+      token,
     });
   } catch (error: any) {
     console.error('API /api/admin/setup-password error:', error);

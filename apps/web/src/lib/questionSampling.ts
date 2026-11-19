@@ -221,7 +221,7 @@ export function generateCandidateExamSession({
     questionsCount: clientQuestions.length,
     questions: clientQuestions,
     shuffleQuestions: true,
-    proctoringEnabled: mode === 'live',
+    proctoringEnabled: true,
     maxViolationsAllowed: mode === 'live' ? 3 : 999,
     status: 'published',
     createdBy: 'DGMS Statutory Board',

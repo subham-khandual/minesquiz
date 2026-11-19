@@ -8,8 +8,10 @@ import { CandidateExamSessionPortal } from '../../components/candidate/Candidate
 import { PreExamVerificationModal } from '../../components/PreExamVerificationModal';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useQuizStore } from '../../stores/useQuizStore';
+import { useProctorStore } from '../../stores/useProctorStore';
 import { generateCandidateExamSession } from '../../lib/questionSampling';
 import { auth, onAuthStateChanged } from '../../lib/firebase';
+import { APP_CONFIG } from '../../config/appConfig';
 
 export default function CandidatePortalPage() {
   const router = useRouter();
@@ -34,7 +36,7 @@ export default function CandidatePortalPage() {
               firebaseUid: fbUser.uid,
               email,
               displayName: name,
-              role: email === 'subhamkhandual215@gmail.com' ? 'both' : 'student',
+              role: APP_CONFIG.isMasterEmail(email) ? 'both' : 'student',
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             });
@@ -54,7 +56,7 @@ export default function CandidatePortalPage() {
   // Automatic Fresh Reset: clears prior attempts and lockouts so candidate can take exam fresh
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const CANDIDATE_SCHEMA_VERSION = 'v4.0';
+      const CANDIDATE_SCHEMA_VERSION = 'v4.1';
       const stored = localStorage.getItem('mines_candidate_schema_version');
       if (stored !== CANDIDATE_SCHEMA_VERSION) {
         Object.keys(localStorage).forEach((key) => {
@@ -70,39 +72,75 @@ export default function CandidatePortalPage() {
         });
         try {
           sessionStorage.removeItem('mines_active_quiz_session');
+          // Clean up legacy unscoped single-attempt cookies so all statutory subjects remain open
+          const rawEmail =
+            sessionStorage.getItem('mines_candidate_email') ||
+            localStorage.getItem('mines_candidate_email') ||
+            '';
+          if (rawEmail) {
+            document.cookie = `mines_sub_${btoa(rawEmail).replace(/=/g, '')}=; path=/; max-age=0; SameSite=Strict`;
+            document.cookie = `mines_term_${btoa(rawEmail).replace(/=/g, '')}=; path=/; max-age=0; SameSite=Strict`;
+          }
         } catch {}
         localStorage.setItem('mines_candidate_schema_version', CANDIDATE_SCHEMA_VERSION);
       }
     }
   }, []);
 
-  const handleStartExam = (mode: 'mock' | 'live' = 'mock', subjectCode: string = 'MIN-ALL') => {
+  const handleStartExam = async (mode: 'mock' | 'live' = 'mock', subjectCode: string = 'MIN-ALL') => {
     const candidateEmail = user?.email || 'subhamkhandual215@gmail.com';
     const targetQuizId = `quiz-${subjectCode.toLowerCase()}-${mode}`;
 
-    // Single Attempt Enforcement for Live Proctored Exams (Exempts designated master user)
+    // Single Attempt Enforcement strictly scoped per statutory subject (MIN-101 to MIN-106)
     if (mode === 'live' && typeof window !== 'undefined') {
-      const isMasterUser = candidateEmail.toLowerCase() === 'subhamkhandual215@gmail.com';
+      const isMasterUser = APP_CONFIG.isMasterEmail(candidateEmail);
       if (!isMasterUser) {
+        // Query server ledger first (Layer 3 Server-Side Gate)
+        try {
+          const res = await fetch(
+            `/api/candidate/subject-status?email=${encodeURIComponent(candidateEmail)}&subjectCode=${encodeURIComponent(subjectCode)}&mode=live`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.canAttempt === false) {
+              alert(
+                data.reason ||
+                  `Single Attempt Enforcement: You have already attempted or completed this statutory examination paper (${subjectCode}). Under DGMS regulations, multiple retakes on the same candidate email are strictly prohibited for this subject.`
+              );
+              return;
+            }
+          }
+        } catch (serverCheckErr) {
+          console.warn('[CandidatePortal] Server subject-status check notice:', serverCheckErr);
+        }
+
         const priorAttempt = localStorage.getItem(`mines_attempt_${candidateEmail}_${targetQuizId}`);
         const wasTerminated = localStorage.getItem(`mines_terminated_${candidateEmail}_${targetQuizId}`);
+        const scopedSubCookie = `mines_sub_${btoa(candidateEmail + '_' + targetQuizId).replace(/=/g, '')}`;
+        const scopedTermCookie = `mines_term_${btoa(candidateEmail + '_' + targetQuizId).replace(/=/g, '')}`;
         let cookieAttempt = false;
         try {
           cookieAttempt =
-            document.cookie.includes(`mines_sub_${btoa(candidateEmail).replace(/=/g, '')}`) ||
-            document.cookie.includes(`mines_term_${btoa(candidateEmail).replace(/=/g, '')}`);
+            document.cookie.includes(scopedSubCookie) ||
+            document.cookie.includes(scopedTermCookie);
         } catch {}
 
         if (priorAttempt || wasTerminated || cookieAttempt) {
           alert(
             'Single Attempt Enforcement: You have already attempted or completed this statutory examination paper (' +
               subjectCode +
-              '). Under DGMS regulations, multiple retakes on the same candidate email are strictly prohibited.'
+              '). Under DGMS regulations, multiple retakes on the same candidate email are strictly prohibited for this subject.'
           );
           return;
         }
       }
     }
+
+    // Clean proctor reset: ensure prior subject termination or strikes do not leak into the new paper
+    useProctorStore.getState().resetProctor();
+    try {
+      sessionStorage.removeItem('mines_active_quiz_session');
+    } catch {}
 
     // Dynamically generate completely unique question set & shuffled options for this candidate
     const { quiz, rawMasterQuestionsForScoring } = generateCandidateExamSession({

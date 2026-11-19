@@ -27,6 +27,7 @@ const ViolationLogSchema = new Schema<IViolationLogDocument>(
         'fullscreen_exit',
         'audio_detected',
         'suspicious_movement',
+        'lip_movement',
       ],
       required: true,
     },

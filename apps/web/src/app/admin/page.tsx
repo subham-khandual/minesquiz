@@ -47,7 +47,7 @@ export default function AdminDashboardPage() {
   const [candidates, setCandidates] = useState<CandidateAttemptRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'passed' | 'failed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'passed' | 'failed' | 'disqualified'>('all');
   const [proctorFilter, setProctorFilter] = useState<'all' | 'clean' | 'flagged'>('all');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateAttemptRecord | null>(null);
@@ -678,6 +678,7 @@ export default function AdminDashboardPage() {
                     <option value="all">All Results</option>
                     <option value="passed">Passed Only</option>
                     <option value="failed">Failed Only</option>
+                    <option value="disqualified">Disqualified Only</option>
                   </select>
 
                   <select
@@ -789,7 +790,9 @@ export default function AdminDashboardPage() {
                               </td>
 
                               <td className="py-3.5 px-4 font-semibold text-slate-900 tabular-nums">
-                                {candidate.marksObtained}/{candidate.totalMarks} ({candidate.percentage}%)
+                                {candidate.status === 'disqualified' || candidate.proctorStatus === 'disqualified'
+                                  ? `0 / ${candidate.totalMarks} (0.0%)`
+                                  : `${candidate.marksObtained}/${candidate.totalMarks} (${candidate.percentage}%)`}
                               </td>
 
                               <td className="py-3.5 px-4">
@@ -798,9 +801,14 @@ export default function AdminDashboardPage() {
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                     <span>Passed</span>
                                   </span>
-                                ) : (
+                                ) : candidate.status === 'disqualified' || candidate.proctorStatus === 'disqualified' ? (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
-                                    <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                                    <span>Disqualified</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+                                    <XCircle className="w-3.5 h-3.5 text-amber-600" />
                                     <span>Failed</span>
                                   </span>
                                 )}
@@ -811,6 +819,11 @@ export default function AdminDashboardPage() {
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
                                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                                     <span>Clean</span>
+                                  </span>
+                                ) : candidate.proctorStatus === 'disqualified' || candidate.status === 'disqualified' ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
+                                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                                    <span>Terminated</span>
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
@@ -1273,7 +1286,9 @@ export default function AdminDashboardPage() {
                 <div>
                   <span className="text-slate-500 text-xs block">Marks & Score:</span>
                   <span className="font-poppins font-bold text-slate-900 block tabular-nums">
-                    {selectedCandidate.marksObtained}/{selectedCandidate.totalMarks} ({selectedCandidate.percentage}%)
+                    {selectedCandidate.status === 'disqualified' || selectedCandidate.proctorStatus === 'disqualified'
+                      ? `0 / ${selectedCandidate.totalMarks} (0.0%)`
+                      : `${selectedCandidate.marksObtained}/${selectedCandidate.totalMarks} (${selectedCandidate.percentage}%)`}
                   </span>
                 </div>
                 <div>
@@ -1284,9 +1299,14 @@ export default function AdminDashboardPage() {
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         DGMS Pass (&gt;=60%)
                       </span>
-                    ) : (
+                    ) : selectedCandidate.status === 'disqualified' || selectedCandidate.proctorStatus === 'disqualified' ? (
                       <span className="text-rose-700 font-bold inline-flex items-center gap-1">
-                        <XCircle className="w-4 h-4 text-rose-600" />
+                        <ShieldAlert className="w-4 h-4 text-rose-600" />
+                        Disqualified (Integrity Policy Violation)
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 font-bold inline-flex items-center gap-1">
+                        <XCircle className="w-4 h-4 text-amber-600" />
                         Unsuccessful (&lt;60%)
                       </span>
                     )}

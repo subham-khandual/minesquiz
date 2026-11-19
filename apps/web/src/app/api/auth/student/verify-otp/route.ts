@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyStudentOtp, saveCandidateAccount } from '../../../../../lib/studentAuthStore';
 import { getClientIp, checkRateLimit } from '../../../../../lib/rateLimit';
+import { createSignedJwt } from '../../../../../lib/jwtServer';
 
 export async function POST(request: Request) {
   try {
@@ -50,7 +51,15 @@ export async function POST(request: Request) {
       candidate = saveRes.candidate;
     }
 
-    const token = 'cand-jwt-' + Buffer.from(email + ':' + Date.now()).toString('base64');
+    const token = createSignedJwt(
+      {
+        sub: candidate?.id || 'candidate-' + email,
+        email,
+        role: 'student',
+        displayName: result.fullName || email.split('@')[0],
+      },
+      86400
+    );
 
     return NextResponse.json({
       success: true,

@@ -31,14 +31,29 @@ export function useWebcam() {
   const startWebcam = useCallback(async () => {
     try {
       setError(null);
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user',
-        },
-        audio: false,
-      });
+      let mediaStream: MediaStream;
+
+      // Attempt unified camera and microphone capture in a single permission prompt
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user',
+          },
+          audio: true,
+        });
+      } catch (unifiedErr) {
+        // Fallback to video-only if microphone hardware is unavailable
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user',
+          },
+          audio: false,
+        });
+      }
 
       streamRef.current = mediaStream;
       setStream(mediaStream);

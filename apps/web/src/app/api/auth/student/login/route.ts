@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyCandidateCredentials } from '../../../../../lib/studentAuthStore';
 import { getClientIp, checkRateLimit } from '../../../../../lib/rateLimit';
+import { createSignedJwt } from '../../../../../lib/jwtServer';
 
 export async function POST(request: Request) {
   try {
@@ -44,7 +45,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const token = 'cand-jwt-' + Buffer.from(email + ':' + Date.now()).toString('base64');
+    const rememberMe = Boolean(body?.rememberMe);
+    const expiresInSeconds = rememberMe ? 7 * 86400 : 86400;
+    const token = createSignedJwt(
+      {
+        sub: result.candidate.id,
+        email: result.candidate.email,
+        role: 'student',
+        displayName: result.candidate.fullName,
+      },
+      expiresInSeconds
+    );
 
     return NextResponse.json({
       success: true,

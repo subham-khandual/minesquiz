@@ -186,4 +186,20 @@ describe('Live Exam: Scientific Grading, Audio Warning, and 1-Chance Face Procto
       expect(content).not.toContain('\u2013'); // en-dash
     });
   });
+
+  test('8. Validates logViolationSchema accepts lip_movement violation payload without 400 Bad Request', () => {
+    const { logViolationSchema } = require('../../src/validators/attemptValidator');
+    const validPayload = {
+      attemptId: 'mock-attempt-101',
+      type: 'lip_movement',
+      severity: 'warning',
+      confidence: 0.95,
+      snapshotUrl: 'data:image/jpeg;base64,mockSnapshotData',
+    };
+
+    const parsed = logViolationSchema.parse(validPayload);
+    expect(parsed.type).toBe('lip_movement');
+    expect(parsed.attemptId).toBe('mock-attempt-101');
+    expect(parsed.severity).toBe('warning');
+  });
 });

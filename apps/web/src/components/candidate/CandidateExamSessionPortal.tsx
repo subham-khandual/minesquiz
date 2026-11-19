@@ -32,10 +32,13 @@ import {
   Smartphone,
   Eye,
   Check,
-  X
+  X,
+  Lock,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useProctorStore } from '../../stores/useProctorStore';
 import { MINING_SUBJECTS, getSubjectByCode } from '../../lib/questionSampling';
+import { APP_CONFIG } from '../../config/appConfig';
 import { SocialFooter } from '../common/SocialFooter';
 import { ExamInstructionsView } from './ExamInstructionsView';
 
@@ -94,6 +97,91 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
     }
   }, []);
 
+  // Single Attempt Status state for the currently selected statutory subject
+  const [subjectAttemptStatus, setSubjectAttemptStatus] = useState<{
+    canAttempt: boolean;
+    hasAttempted: boolean;
+    status?: string;
+    attempt?: {
+      id: string;
+      subjectCode: string;
+      subjectName: string;
+      marksObtained: number;
+      totalMarks: number;
+      percentage: number;
+      submittedAt: string;
+      status: string;
+    };
+    reason?: string;
+  } | null>(null);
+  const [isCheckingAttemptStatus, setIsCheckingAttemptStatus] = useState<boolean>(false);
+
+  // Real historical completed assessments for this candidate
+  const [historicalAttempts, setHistoricalAttempts] = useState<Array<{
+    id: string;
+    subjectCode: string;
+    subjectName: string;
+    mode: string;
+    marksObtained: number;
+    totalMarks: number;
+    percentage: number;
+    status: string;
+    submittedAt: string;
+  }>>([]);
+
+  // Fetch attempt status for selected statutory subject
+  useEffect(() => {
+    let isCancelled = false;
+    const email =
+      user?.email ||
+      (typeof window !== 'undefined' ? localStorage.getItem('mines_candidate_email') : null) ||
+      '';
+    if (!email) return;
+
+    setIsCheckingAttemptStatus(true);
+    fetch(
+      `/api/candidate/subject-status?email=${encodeURIComponent(email)}&subjectCode=${encodeURIComponent(selectedSubjectCode)}&mode=live`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isCancelled && data) {
+          setSubjectAttemptStatus(data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not verify candidate statutory attempt status:', err);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsCheckingAttemptStatus(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.email, selectedSubjectCode, activeTab]);
+
+  // Fetch all completed statutory attempts for Scorecards tab
+  useEffect(() => {
+    const email =
+      user?.email ||
+      (typeof window !== 'undefined' ? localStorage.getItem('mines_candidate_email') : null) ||
+      '';
+    if (!email) return;
+
+    fetch(`/api/candidate/subject-status?email=${encodeURIComponent(email)}&all=true`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.attempts)) {
+          setHistoricalAttempts(data.attempts);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load historical attempts:', err);
+      });
+  }, [user?.email, activeTab]);
+
   // Hidden video stream element for on-demand hardware testing
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeStreamRef = useRef<MediaStream | null>(null);
@@ -126,6 +214,9 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
   const handleLaunchExam = useCallback(
     (mode: 'live' | 'mock', subjectCode?: string) => {
       cleanupHardwareStreams();
+      try {
+        useProctorStore.getState().resetProctor();
+      } catch {}
       onStartExam(mode, subjectCode || selectedSubjectCode);
     },
     [cleanupHardwareStreams, onStartExam, selectedSubjectCode]
@@ -704,6 +795,36 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
                       </option>
                     ))}
                   </select>
+
+                  {/* Single Attempt Eligibility Feedback Banner */}
+                  {isCheckingAttemptStatus ? (
+                    <div className="mt-3 flex items-center gap-2 text-xs font-inter text-slate-500">
+                      <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      <span>Verifying DGMS statutory attempt ledger...</span>
+                    </div>
+                  ) : subjectAttemptStatus?.hasAttempted ? (
+                    <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200/90 flex items-start gap-3">
+                      <Lock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <h4 className="font-poppins font-bold text-sm text-amber-900">
+                          Paper Already Attempted (Single Attempt Policy)
+                        </h4>
+                        <p className="font-inter text-xs text-amber-800 mt-0.5 leading-relaxed">
+                          You have already completed this statutory paper on this email. Score: <span className="font-bold">{subjectAttemptStatus.attempt?.marksObtained} / {subjectAttemptStatus.attempt?.totalMarks}</span> ({subjectAttemptStatus.attempt?.percentage}%). Under DGMS guidelines, multiple retakes on the same email are prohibited. You can practice this paper in Mock mode or select another statutory subject.
+                        </p>
+                      </div>
+                    </div>
+                  ) : APP_CONFIG.isMasterEmail(candidateEmail) ? (
+                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-inter text-indigo-700">
+                      <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>Master Developer Exemption Active: Unlimited proctored test attempts permitted.</span>
+                    </div>
+                  ) : (
+                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-inter text-emerald-800">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Statutory Eligibility: 1 Official Proctored Attempt available for this subject on your email.</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -787,14 +908,35 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
                   <span>Exiting exam mode or switching apps will register an integrity alert.</span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleLaunchExam('live', selectedSubjectCode)}
-                  className="w-full sm:w-auto min-h-[48px] bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-poppins font-bold text-sm sm:text-base px-8 py-3.5 sm:py-4 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span>Launch Live Proctored Exam</span>
-                  <ArrowRight className="w-5 h-5" />
-                </button>
+                {subjectAttemptStatus?.hasAttempted && !APP_CONFIG.isMasterEmail(candidateEmail) ? (
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full sm:w-auto min-h-[48px] bg-slate-200 text-slate-500 font-poppins font-bold text-sm px-6 py-3.5 rounded-xl cursor-not-allowed flex items-center justify-center gap-2 border border-slate-300"
+                    >
+                      <Lock className="w-4 h-4 text-slate-400" />
+                      <span>Statutory Paper Completed</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('scorecards')}
+                      className="w-full sm:w-auto min-h-[48px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-poppins font-bold text-sm px-5 py-3.5 rounded-xl border border-blue-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Award className="w-4 h-4 text-blue-600" />
+                      <span>View Scorecard</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleLaunchExam('live', selectedSubjectCode)}
+                    className="w-full sm:w-auto min-h-[48px] bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-poppins font-bold text-sm sm:text-base px-8 py-3.5 sm:py-4 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Launch Live Proctored Exam</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
@@ -848,33 +990,79 @@ export const CandidateExamSessionPortal: React.FC<CandidateExamSessionPortalProp
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {recentAttempts.map((attempt) => (
-                        <tr key={attempt.id} className="hover:bg-slate-50/50">
-                          <td className="py-4 px-4 sm:px-5 font-semibold text-slate-900">
-                            {attempt.subject}
-                          </td>
-                          <td className="py-4 px-4 sm:px-5 text-slate-600">
-                            <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
-                              {attempt.mode}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 sm:px-5 font-semibold text-slate-900 tabular-nums">
-                            {attempt.score}
-                          </td>
-                          <td className="py-4 px-4 sm:px-5 font-bold text-slate-900 tabular-nums">
-                            {attempt.percentage}
-                          </td>
-                          <td className="py-4 px-4 sm:px-5">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
-                              <CheckCircle2 className="w-4 h-4" />
-                              Passed
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 sm:px-5 text-slate-500">
-                            {attempt.date}
-                          </td>
-                        </tr>
-                      ))}
+                      {historicalAttempts.length > 0 ? (
+                        historicalAttempts.map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-50/50">
+                            <td className="py-4 px-4 sm:px-5 font-semibold text-slate-900">
+                              {item.subjectCode}: {item.subjectName}
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 text-slate-600">
+                              <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium">
+                                {item.mode === 'live' ? 'Live Proctored' : 'Mock Practice'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 font-semibold text-slate-900 tabular-nums">
+                              {item.marksObtained} / {item.totalMarks}
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 font-bold text-slate-900 tabular-nums">
+                              {typeof item.percentage === 'number' ? item.percentage.toFixed(1) : item.percentage}%
+                            </td>
+                            <td className="py-4 px-4 sm:px-5">
+                              {item.status === 'passed' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  Passed
+                                </span>
+                              ) : item.status === 'failed' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
+                                  <XCircle className="w-4 h-4 text-rose-600" />
+                                  Failed
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+                                  {item.status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 text-slate-500 tabular-nums">
+                              {new Date(item.submittedAt).toLocaleString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        recentAttempts.map((attempt) => (
+                          <tr key={attempt.id} className="hover:bg-slate-50/50">
+                            <td className="py-4 px-4 sm:px-5 font-semibold text-slate-900">
+                              {attempt.subject}
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 text-slate-600">
+                              <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
+                                {attempt.mode}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 font-semibold text-slate-900 tabular-nums">
+                              {attempt.score}
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 font-bold text-slate-900 tabular-nums">
+                              {attempt.percentage}
+                            </td>
+                            <td className="py-4 px-4 sm:px-5">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                                <CheckCircle2 className="w-4 h-4" />
+                                Passed
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 sm:px-5 text-slate-500">
+                              {attempt.date}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

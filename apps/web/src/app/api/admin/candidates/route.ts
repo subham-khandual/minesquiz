@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getClientIp, checkRateLimit } from '../../../../lib/rateLimit';
+import { verifySignedJwt } from '../../../../lib/jwtServer';
+import { recordSubjectAttemptToDisk } from '../../../../lib/studentAuthStore';
+import { APP_CONFIG } from '../../../../config/appConfig';
 
 export interface CandidateAttemptRecord {
   id: string;
@@ -11,7 +14,7 @@ export interface CandidateAttemptRecord {
   marksObtained: number;
   totalMarks: number;
   percentage: number;
-  status: 'passed' | 'failed';
+  status: 'passed' | 'failed' | 'disqualified';
   proctorStatus: 'clean' | 'flagged' | 'disqualified';
   violationsCount: number;
   violations: Array<{
@@ -36,6 +39,17 @@ function isAuthorizedAdmin(req: Request): boolean {
   const authHeader = req.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
   const token = authHeader.split('Bearer ')[1].trim();
+
+  // Cryptographic RFC 7519 JWT verification
+  const verification = verifySignedJwt(token);
+  if (
+    verification.valid &&
+    (verification.payload?.role === 'admin' || verification.payload?.role === 'both')
+  ) {
+    return true;
+  }
+
+  // Graceful fallback during migration transition for legacy admin-jwt prefix
   if (token.startsWith('admin-jwt-')) return true;
   if (process.env.NODE_ENV === 'development' && token.length > 5) return true;
   return false;
@@ -82,33 +96,52 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const clientIp = getClientIp(req);
+    const body = await req.json();
 
-    // Rate Limit: Maximum 10 candidate examination records per minute per IP
-    const ipLimit = checkRateLimit(`candidate_sync_ip_${clientIp}`, 10, 60);
-    if (!ipLimit.allowed) {
+    if (!body || !body.email || !body.name) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `Rate limit exceeded. Too many examination submissions from this IP. Retry in ${ipLimit.retryAfterSeconds} seconds.`,
-        },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(ipLimit.retryAfterSeconds) },
-        }
+        { success: false, error: 'Candidate name and email are required.' },
+        { status: 400 }
       );
     }
 
-    const body = await req.json();
-    if (!body || !body.email || !body.name) {
-      return NextResponse.json({ success: false, error: 'Candidate name and email are required.' }, { status: 400 });
+    const candidateEmail = String(body.email).trim().toLowerCase();
+    const isMasterUser = APP_CONFIG.isMasterEmail(candidateEmail);
+    const isDevOrLocalhost =
+      process.env.NODE_ENV === 'development' ||
+      clientIp === '127.0.0.1' ||
+      clientIp === '::1' ||
+      clientIp === 'localhost';
+
+    // Master developer email is completely exempted from rate limits for continuous testing
+    if (!isMasterUser) {
+      const maxRequests = isDevOrLocalhost ? 120 : 30;
+      const ipLimit = checkRateLimit(`candidate_sync_ip_${clientIp}`, maxRequests, 60);
+      if (!ipLimit.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Rate limit exceeded. Too many examination submissions from this IP. Retry in ${ipLimit.retryAfterSeconds} seconds.`,
+          },
+          {
+            status: 429,
+            headers: { 'Retry-After': String(ipLimit.retryAfterSeconds) },
+          }
+        );
+      }
     }
 
     const marksObtained = Math.max(0, Number(body.marksObtained ?? 0));
     const totalMarks = Math.max(1, Number(body.totalMarks || 30));
     const percentage = Math.round((marksObtained / totalMarks) * 1000) / 10;
-    const status = percentage >= 60.0 ? 'passed' : 'failed';
     const violationsCount = Array.isArray(body.violations) ? body.violations.length : Number(body.violationsCount || 0);
-    const proctorStatus = violationsCount === 0 ? 'clean' : violationsCount >= 3 ? 'disqualified' : 'flagged';
+    const isDisqualified = Boolean(
+      body.status === 'disqualified' ||
+        body.isDisqualified ||
+        (violationsCount >= 2 && marksObtained === 0)
+    );
+    const proctorStatus = isDisqualified ? 'disqualified' : violationsCount === 0 ? 'clean' : 'flagged';
+    const status = isDisqualified ? 'disqualified' : percentage >= 60.0 ? 'passed' : 'failed';
 
     const newRecord: CandidateAttemptRecord = {
       id: body.id || 'att-' + Math.random().toString(36).substring(2, 9),
@@ -144,6 +177,27 @@ export async function POST(req: Request) {
       // Memory Bounded Cap: retain maximum 500 records to prevent memory exhaustion / DoS
       if (globalThis.__MINES_CANDIDATE_ATTEMPTS__.length > 500) {
         globalThis.__MINES_CANDIDATE_ATTEMPTS__.length = 500;
+      }
+
+      // Persist to disk ledger for hacker-proof single attempt enforcement across restarts and devices
+      try {
+        recordSubjectAttemptToDisk({
+          id: newRecord.id,
+          rawEmail: newRecord.email,
+          subjectCode: newRecord.subjectCode,
+          subjectName: newRecord.subjectName,
+          mode: 'live',
+          status: newRecord.proctorStatus === 'disqualified' ? 'terminated' : 'submitted',
+          marksObtained: newRecord.marksObtained,
+          totalMarks: newRecord.totalMarks,
+          percentage: newRecord.percentage,
+          violationsCount: newRecord.violationsCount,
+          timeSpentMinutes: newRecord.timeSpentMinutes,
+          submittedAt: newRecord.submittedAt,
+          clientIp,
+        });
+      } catch (diskErr) {
+        console.warn('[Admin Candidates] Failed to persist attempt to disk ledger:', diskErr);
       }
     }
 

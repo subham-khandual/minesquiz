@@ -43,9 +43,19 @@ export const ViolationToast: React.FC = () => {
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
               {isWarning ? (
-                <span className="bg-amber-700/60 text-amber-100 px-2 py-0.5 rounded">
-                  Advisory Notice (No Disqualification)
-                </span>
+                activeAlert.includes('Strike 1 of 2') ? (
+                  <span className="bg-amber-900/80 text-amber-200 border border-amber-400/40 px-2.5 py-0.5 rounded-full font-bold">
+                    Strike 1 of 2: Next violation will terminate exam!
+                  </span>
+                ) : activeAlert.toLowerCase().includes('sound') || activeAlert.toLowerCase().includes('voice') || activeAlert.toLowerCase().includes('noise') ? (
+                  <span className="bg-amber-900/80 text-amber-200 border border-amber-400/40 px-2.5 py-0.5 rounded-full font-bold">
+                    Audio Alert: Please maintain complete silence
+                  </span>
+                ) : (
+                  <span className="bg-amber-700/60 text-amber-100 px-2 py-0.5 rounded">
+                    Advisory Notice
+                  </span>
+                )
               ) : faceAbsenceCount > 0 ? (
                 <span className="bg-rose-700/80 text-rose-100 px-2 py-0.5 rounded">
                   Face Absence: {faceAbsenceCount} of {maxAllowedFaceAbsences} allowed
