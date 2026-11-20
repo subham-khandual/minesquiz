@@ -16,6 +16,7 @@ import { useQuizStore } from '../stores/useQuizStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useRBAC } from '../hooks/useRBAC';
 import { Card, Button } from '@mines-quiz/ui';
+import { APP_CONFIG } from '../config/appConfig';
 import {
   Clock,
   Award,
@@ -74,7 +75,7 @@ export default function HomePage() {
   // Single-attempt check based on email in localStorage with automatic schema versioning
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const CURRENT_SCHEMA_VERSION = 'v4.0';
+      const CURRENT_SCHEMA_VERSION = 'v4.3';
       const storedVersion = localStorage.getItem('mines_schema_version');
       if (storedVersion !== CURRENT_SCHEMA_VERSION) {
         // Automatically flush all prior examination attempts to start completely fresh
@@ -91,6 +92,12 @@ export default function HomePage() {
         });
         try {
           sessionStorage.removeItem('mines_active_quiz_session');
+          document.cookie.split(';').forEach((c) => {
+            const cookieName = c.split('=')[0].trim();
+            if (cookieName.startsWith('mines_term_') || cookieName.startsWith('mines_sub_')) {
+              APP_CONFIG.clearCookie(cookieName);
+            }
+          });
         } catch {}
         localStorage.setItem('mines_schema_version', CURRENT_SCHEMA_VERSION);
       }

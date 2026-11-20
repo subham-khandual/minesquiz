@@ -44,6 +44,7 @@ export function useFaceDetector({
   const reportWarning = useProctorStore((s) => s.reportWarning);
   const reportFaceAbsence = useProctorStore((s) => s.reportFaceAbsence);
   const reportLipMovement = useProctorStore((s) => s.reportLipMovement);
+  const reportFaceMovement = useProctorStore((s) => s.reportFaceMovement);
   const terminateImmediately = useProctorStore((s) => s.terminateImmediately);
   const clearActiveAlert = useProctorStore((s) => s.clearActiveAlert);
 
@@ -53,6 +54,8 @@ export function useFaceDetector({
   const consecutiveMultipleFacesRef = useRef(0);
   const lastViolationTimeRef = useRef(0);
   const lastFaceMovementViolationTimeRef = useRef(0);
+  const lastFaceAbsenceTimeRef = useRef(0);
+  const initialWarmupUntilRef = useRef(0);
 
   // Lip movement (lipsing) and whispering tracking
   const prevMouthDataRef = useRef<Uint8Array | null>(null);
@@ -132,12 +135,17 @@ export function useFaceDetector({
   );
 
   const handleFaceAbsence = useCallback(
-    async (message: string) => {
+    async (message?: string) => {
       const now = Date.now();
-      if (now - lastViolationTimeRef.current < 2000) {
+      // Enforce 10-second initial camera warmup grace buffer
+      if (now < initialWarmupUntilRef.current) {
         return;
       }
-      lastViolationTimeRef.current = now;
+      // Enforce 3-second recovery cooldown buffer between absence strikes
+      if (now - lastFaceAbsenceTimeRef.current < 3000) {
+        return;
+      }
+      lastFaceAbsenceTimeRef.current = now;
 
       reportFaceAbsence(message);
 
@@ -147,7 +155,7 @@ export function useFaceDetector({
           await apiClient.post('/proctor/violation', {
             attemptId,
             type: 'no_face',
-            severity: 'critical',
+            severity: 'warning',
             confidence: 0.99,
             snapshotUrl,
           });
@@ -181,6 +189,39 @@ export function useFaceDetector({
     [attemptId, captureSnapshot, reportLipMovement]
   );
 
+  const handleFaceMovement = useCallback(
+    async (message?: string) => {
+      const now = Date.now();
+      // Enforce 10-second initial camera warmup grace buffer
+      if (now < initialWarmupUntilRef.current) {
+        return;
+      }
+      // Enforce 3-second recovery cooldown buffer between face movement warnings
+      if (now - lastFaceMovementViolationTimeRef.current < 3000) {
+        return;
+      }
+      lastFaceMovementViolationTimeRef.current = now;
+
+      reportFaceMovement(message);
+
+      if (attemptId) {
+        try {
+          const snapshotUrl = captureSnapshot() || undefined;
+          await apiClient.post('/proctor/violation', {
+            attemptId,
+            type: 'looking_away',
+            severity: 'warning',
+            confidence: 0.95,
+            snapshotUrl,
+          });
+        } catch (err) {
+          console.warn('[FaceDetector] Failed to log face movement violation:', err);
+        }
+      }
+    },
+    [attemptId, captureSnapshot, reportFaceMovement]
+  );
+
   useEffect(() => {
     if (!enabled) return;
 
@@ -193,6 +234,8 @@ export function useFaceDetector({
     lastLipViolationTimeRef.current = 0;
     prevMouthDataRef.current = null;
     lookingAwayStrikeRef.current = 0;
+    lastFaceAbsenceTimeRef.current = 0;
+    initialWarmupUntilRef.current = Date.now() + 10000; // 10 seconds warmup grace buffer
 
     // Off-screen canvas for high-speed frame processing (160x120 = 19,200 pixels)
     const canvas = document.createElement('canvas');
@@ -319,12 +362,10 @@ export function useFaceDetector({
                 setIsLookingAway(true);
                 setFaceBox(null);
 
-                // 5 consecutive frames = ~2.0 seconds without face triggers strike
-                if (consecutiveNoFaceRef.current >= 5) {
+                // 8 consecutive frames = ~3.2 seconds without face triggers strike (after warmup buffer)
+                if (consecutiveNoFaceRef.current >= 8) {
                   consecutiveNoFaceRef.current = 0;
-                  handleFaceAbsence(
-                    'Warning: Face missing from camera (Strike 1 of 2). Face must be visible at all times.'
-                  );
+                  handleFaceAbsence();
                 }
                 return;
               }
@@ -388,12 +429,12 @@ export function useFaceDetector({
               setPitch(calcPitch);
 
               // Spatial Face Movement Tracking: Checks if face centroid is significantly displacing away from safe screen zone
-              // Wide generous safe zone (X: 0.22 to 0.78, Y: 0.14 to 0.86) permits natural reading without false triggers
+              // Calibrated Center Zone: Horizontal [0.30, 0.70], Vertical [0.20, 0.75] or 3D angles |yaw| > 26, |pitch| > 22
               let currentStatus: PoseStatus = 'center';
-              if (centerX < 0.22) currentStatus = 'left';
-              else if (centerX > 0.78) currentStatus = 'right';
-              else if (centerY > 0.86) currentStatus = 'down';
-              else if (centerY < 0.14) currentStatus = 'up';
+              if (centerX < 0.30 || calcYaw < -26) currentStatus = 'left';
+              else if (centerX > 0.70 || calcYaw > 26) currentStatus = 'right';
+              else if (centerY > 0.75 || calcPitch > 22) currentStatus = 'down';
+              else if (centerY < 0.20 || calcPitch < -22) currentStatus = 'up';
 
               setPoseStatus(currentStatus);
 
@@ -459,36 +500,25 @@ export function useFaceDetector({
                 prevMouthDataRef.current = null;
                 lipMovementScoreRef.current = 0;
 
-                // Require at least 4 consecutive frames (~1.6s sustained face displacement) before strike
-                if (consecutiveLookingAwayRef.current >= 4) {
+                // Require 3 consecutive frames (~1.2s sustained face displacement) before strike
+                if (consecutiveLookingAwayRef.current >= 3) {
                   consecutiveLookingAwayRef.current = 0;
-                  const now = Date.now();
-
-                  if (lookingAwayStrikeRef.current === 0) {
-                    // Strike 1: First Warning
-                    lookingAwayStrikeRef.current = 1;
-                    lastFaceMovementViolationTimeRef.current = now;
-                    reportWarning(
-                      'looking_away',
-                      'Warning: Face movement detected (Strike 1 of 2). Please keep your face still and focused on the screen. Next violation will terminate your exam!'
-                    );
-                  } else if (now - lastFaceMovementViolationTimeRef.current >= 6000) {
-                    // Strike 2: Next time Exam Quit (Disqualification after 6s recovery cooldown)
-                    handleImmediateDisqualification(
-                      'looking_away',
-                      'Disqualification: Repeated face movement detected (Strike 2 of 2). Examination terminated.'
-                    );
-                  }
+                  handleFaceMovement();
                 }
               } else {
                 consecutiveLookingAwayRef.current = 0;
                 consecutiveNoFaceRef.current = 0;
                 consecutiveMultipleFacesRef.current = 0;
 
-                // If candidate has stabilized face at center after Strike 1 warning, clear active alert
+                // If candidate has stabilized face at center after warning, clear active alert
+                const now = Date.now();
                 if (
-                  lookingAwayStrikeRef.current === 1 &&
-                  Date.now() - lastFaceMovementViolationTimeRef.current > 4000
+                  (lastFaceMovementViolationTimeRef.current > 0 &&
+                    now - lastFaceMovementViolationTimeRef.current > 3500 &&
+                    now - lastFaceMovementViolationTimeRef.current < 6500) ||
+                  (lastFaceAbsenceTimeRef.current > 0 &&
+                    now - lastFaceAbsenceTimeRef.current > 3500 &&
+                    now - lastFaceAbsenceTimeRef.current < 6500)
                 ) {
                   clearActiveAlert();
                 }
@@ -587,12 +617,10 @@ export function useFaceDetector({
           setIsLookingAway(true);
           setFaceBox(null);
 
-          // 4 frames = ~1.6 seconds without face before strike
-          if (consecutiveNoFaceRef.current >= 4) {
+          // 6 frames = ~2.4 seconds without face before strike (after warmup buffer)
+          if (consecutiveNoFaceRef.current >= 6) {
             consecutiveNoFaceRef.current = 0;
-            handleFaceAbsence(
-              'No candidate face detected in video stream (Strike 1 of 2). Return to camera view immediately.'
-            );
+            handleFaceAbsence();
           }
           return;
         }
@@ -718,12 +746,12 @@ export function useFaceDetector({
         setPitch(calcPitch);
 
         // Spatial Face Movement Tracking (Tier 2): Checks if face centroid is significantly displacing away from safe screen zone
-        // Wide generous safe zone (X: 0.22 to 0.78, Y: 0.14 to 0.86) permits natural reading without false triggers
+        // Calibrated Center Zone: Horizontal [0.30, 0.70], Vertical [0.20, 0.75] or 3D angles |yaw| > 26, |pitch| > 22
         let currentStatus: PoseStatus = 'center';
-        if (normCentroidX < 0.22) currentStatus = 'left';
-        else if (normCentroidX > 0.78) currentStatus = 'right';
-        else if (normCentroidY > 0.86) currentStatus = 'down';
-        else if (normCentroidY < 0.14) currentStatus = 'up';
+        if (normCentroidX < 0.30 || calcYaw < -26) currentStatus = 'left';
+        else if (normCentroidX > 0.70 || calcYaw > 26) currentStatus = 'right';
+        else if (normCentroidY > 0.75 || calcPitch > 22) currentStatus = 'down';
+        else if (normCentroidY < 0.20 || calcPitch < -22) currentStatus = 'up';
 
         setPoseStatus(currentStatus);
 
@@ -783,36 +811,25 @@ export function useFaceDetector({
           prevMouthDataRef.current = null;
           lipMovementScoreRef.current = 0;
 
-          // Require at least 4 consecutive frames (~1.6s sustained face displacement) before strike
-          if (consecutiveLookingAwayRef.current >= 4) {
+          // Require 3 consecutive frames (~1.2s sustained face displacement) before strike
+          if (consecutiveLookingAwayRef.current >= 3) {
             consecutiveLookingAwayRef.current = 0;
-            const now = Date.now();
-
-            if (lookingAwayStrikeRef.current === 0) {
-              // Strike 1: First Warning
-              lookingAwayStrikeRef.current = 1;
-              lastFaceMovementViolationTimeRef.current = now;
-              reportWarning(
-                'looking_away',
-                'Warning: Face movement detected (Strike 1 of 2). Please keep your face still and focused on the screen. Next violation will terminate your exam!'
-              );
-            } else if (now - lastFaceMovementViolationTimeRef.current >= 6000) {
-              // Strike 2: Next time Exam Quit (Disqualification after 6s recovery cooldown)
-              handleImmediateDisqualification(
-                'looking_away',
-                'Disqualification: Repeated face movement detected (Strike 2 of 2). Examination terminated.'
-              );
-            }
+            handleFaceMovement();
           }
         } else {
           consecutiveLookingAwayRef.current = 0;
           consecutiveNoFaceRef.current = 0;
           consecutiveMultipleFacesRef.current = 0;
 
-          // If candidate has stabilized face at center after Strike 1 warning, clear active alert
+          // If candidate has stabilized face at center after warning, clear active alert
+          const now = Date.now();
           if (
-            lookingAwayStrikeRef.current === 1 &&
-            Date.now() - lastFaceMovementViolationTimeRef.current > 4000
+            (lastFaceMovementViolationTimeRef.current > 0 &&
+              now - lastFaceMovementViolationTimeRef.current > 3500 &&
+              now - lastFaceMovementViolationTimeRef.current < 6500) ||
+            (lastFaceAbsenceTimeRef.current > 0 &&
+              now - lastFaceAbsenceTimeRef.current > 3500 &&
+              now - lastFaceAbsenceTimeRef.current < 6500)
           ) {
             clearActiveAlert();
           }
@@ -846,6 +863,7 @@ export function useFaceDetector({
     handleViolation,
     handleFaceAbsence,
     handleLipMovement,
+    handleFaceMovement,
     handleImmediateDisqualification,
     reportWarning,
     clearActiveAlert,

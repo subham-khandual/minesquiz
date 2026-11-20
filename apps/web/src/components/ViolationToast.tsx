@@ -43,7 +43,27 @@ export const ViolationToast: React.FC = () => {
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
               {isWarning ? (
-                activeAlert.includes('Strike 1 of 2') ? (
+                activeAlert.includes('Warning 1 of 2') ? (
+                  <span className="bg-amber-900/80 text-amber-200 border border-amber-400/40 px-2.5 py-0.5 rounded-full font-bold">
+                    Warning 1 of 2: Please stay inside center frame
+                  </span>
+                ) : activeAlert.includes('Warning 2 of 2') ? (
+                  <span className="bg-rose-900/90 text-rose-200 border border-rose-400/60 px-2.5 py-0.5 rounded-full font-bold animate-pulse">
+                    Final Warning 2 of 2: Next violation terminates exam!
+                  </span>
+                ) : activeAlert.includes('Warning 1 of 3') ? (
+                  <span className="bg-amber-900/80 text-amber-200 border border-amber-400/40 px-2.5 py-0.5 rounded-full font-bold">
+                    Warning 1 of 3: Please center face in camera frame
+                  </span>
+                ) : activeAlert.includes('Warning 2 of 3') ? (
+                  <span className="bg-amber-900/80 text-amber-200 border border-amber-400/40 px-2.5 py-0.5 rounded-full font-bold">
+                    Warning 2 of 3: 1 warning remaining before termination!
+                  </span>
+                ) : activeAlert.includes('Warning 3 of 3') ? (
+                  <span className="bg-rose-900/90 text-rose-200 border border-rose-400/60 px-2.5 py-0.5 rounded-full font-bold animate-pulse">
+                    Final Warning 3 of 3: Next violation terminates exam!
+                  </span>
+                ) : activeAlert.includes('Strike 1 of 2') ? (
                   <span className="bg-amber-900/80 text-amber-200 border border-amber-400/40 px-2.5 py-0.5 rounded-full font-bold">
                     Strike 1 of 2: Next violation will terminate exam!
                   </span>

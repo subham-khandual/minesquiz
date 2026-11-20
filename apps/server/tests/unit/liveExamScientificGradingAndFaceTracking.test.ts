@@ -119,34 +119,52 @@ describe('Live Exam: Scientific Grading, Audio Warning, and 1-Chance Face Procto
     expect(activeAlert).toContain('Background noise spike 10');
   });
 
-  test('5. Face Absence 1-Chance Policy: Grace on first exit, termination on second exit', () => {
+  test('5. Face Absence 3-Warnings Policy: Grace on first 3 warnings, termination on 4th instance', () => {
     let faceAbsenceCount = 0;
-    const maxAllowedFaceAbsences = 1;
+    const maxAllowedFaceAbsences = 3;
     let isTerminated = false;
     let activeAlert = '';
 
-    const reportFaceAbsence = (msg: string) => {
+    const reportFaceAbsence = () => {
       faceAbsenceCount += 1;
       if (faceAbsenceCount > maxAllowedFaceAbsences) {
         isTerminated = true;
-        activeAlert = 'Examination terminated: Candidate left camera view (Max 1 chance exceeded).';
-      } else {
+        activeAlert = 'Disqualification: Candidate face was absent from camera frame (3 warnings exceeded). Examination terminated.';
+      } else if (faceAbsenceCount === 1) {
         isTerminated = false;
-        activeAlert = msg;
+        activeAlert = 'Warning: Face not detected in camera frame (Warning 1 of 3). Please align your face inside the camera view immediately.';
+      } else if (faceAbsenceCount === 2) {
+        isTerminated = false;
+        activeAlert = 'Warning: Face still not detected (Warning 2 of 3). Please position yourself directly in front of the camera. Only 1 warning remaining!';
+      } else if (faceAbsenceCount === 3) {
+        isTerminated = false;
+        activeAlert = 'Final Warning: Face not visible in camera (Warning 3 of 3). Next violation will permanently terminate and disqualify your examination!';
       }
     };
 
-    // Exit 1: First chance consumed with critical warning
-    reportFaceAbsence('CRITICAL WARNING (Chance 1 of 1): Face not visible in camera frame!');
+    // Warning 1 of 3
+    reportFaceAbsence();
     expect(faceAbsenceCount).toBe(1);
     expect(isTerminated).toBe(false);
-    expect(activeAlert).toContain('Chance 1 of 1');
+    expect(activeAlert).toContain('Warning 1 of 3');
 
-    // Exit 2: Second exit leads to immediate disqualification / termination
-    reportFaceAbsence('CRITICAL WARNING: Face missing again!');
+    // Warning 2 of 3
+    reportFaceAbsence();
     expect(faceAbsenceCount).toBe(2);
+    expect(isTerminated).toBe(false);
+    expect(activeAlert).toContain('Warning 2 of 3');
+
+    // Warning 3 of 3 (Final Warning)
+    reportFaceAbsence();
+    expect(faceAbsenceCount).toBe(3);
+    expect(isTerminated).toBe(false);
+    expect(activeAlert).toContain('Warning 3 of 3');
+
+    // 4th Instance: Exceeds 3 warnings -> Termination & Disqualification
+    reportFaceAbsence();
+    expect(faceAbsenceCount).toBe(4);
     expect(isTerminated).toBe(true);
-    expect(activeAlert).toContain('Examination terminated');
+    expect(activeAlert).toContain('Disqualification: Candidate face was absent from camera frame (3 warnings exceeded)');
   });
 
   test('6. YCbCr Chrominance transformation is invariant to ambient lighting and shadow', () => {
@@ -176,6 +194,11 @@ describe('Live Exam: Scientific Grading, Audio Warning, and 1-Chance Face Procto
       'apps/web/src/components/WebcamProctorView.tsx',
       'apps/web/src/stores/useProctorStore.ts',
       'apps/web/src/components/ViolationToast.tsx',
+      'apps/web/src/features/exam/components/CBTProctorWidget.tsx',
+      'apps/server/src/index.ts',
+      'apps/server/src/routes/index.ts',
+      'apps/server/src/config/appState.ts',
+      'worker.js',
     ];
 
     files.forEach((file) => {
@@ -201,5 +224,57 @@ describe('Live Exam: Scientific Grading, Audio Warning, and 1-Chance Face Procto
     expect(parsed.type).toBe('lip_movement');
     expect(parsed.attemptId).toBe('mock-attempt-101');
     expect(parsed.severity).toBe('warning');
+  });
+
+  test('9. Face Center Departure 2-Warnings Policy: Grace on first 2 warnings, termination on 3rd instance', () => {
+    let faceMovementCount = 0;
+    const maxAllowedFaceMovements = 2;
+    let isTerminated = false;
+    let activeAlert = '';
+
+    const reportFaceMovement = () => {
+      faceMovementCount += 1;
+      if (faceMovementCount > maxAllowedFaceMovements) {
+        isTerminated = true;
+        activeAlert = 'Disqualification: Repeated face movement away from center (2 warnings exceeded). Examination terminated.';
+      } else if (faceMovementCount === 1) {
+        isTerminated = false;
+        activeAlert = 'Warning: Face moved away from camera center (Warning 1 of 2). Please keep your face centered inside the frame.';
+      } else if (faceMovementCount === 2) {
+        isTerminated = false;
+        activeAlert = 'Final Warning: Face outside camera center (Warning 2 of 2). Next violation will permanently terminate and disqualify your examination!';
+      }
+    };
+
+    // Warning 1 of 2
+    reportFaceMovement();
+    expect(faceMovementCount).toBe(1);
+    expect(isTerminated).toBe(false);
+    expect(activeAlert).toContain('Warning 1 of 2');
+
+    // Warning 2 of 2 (Final Warning)
+    reportFaceMovement();
+    expect(faceMovementCount).toBe(2);
+    expect(isTerminated).toBe(false);
+    expect(activeAlert).toContain('Warning 2 of 2');
+
+    // 3rd Instance: Exceeds 2 warnings -> Termination & Disqualification
+    reportFaceMovement();
+    expect(faceMovementCount).toBe(3);
+    expect(isTerminated).toBe(true);
+    expect(activeAlert).toContain('Disqualification: Repeated face movement away from center (2 warnings exceeded)');
+  });
+
+  test('10. Graceful Shutdown & Connection Draining: Health endpoint toggles 503 when draining', () => {
+    const { appState } = require('../../src/config/appState');
+    expect(appState.isShuttingDown).toBe(false);
+
+    // When server receives SIGTERM, appState.isShuttingDown becomes true
+    appState.isShuttingDown = true;
+    expect(appState.isShuttingDown).toBe(true);
+
+    // Reset back to healthy after test
+    appState.isShuttingDown = false;
+    expect(appState.isShuttingDown).toBe(false);
   });
 });

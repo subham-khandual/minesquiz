@@ -186,6 +186,8 @@ export const ExamRoom: React.FC = () => {
     maxAllowedViolations,
     faceAbsenceCount,
     maxAllowedFaceAbsences,
+    faceMovementCount,
+    maxAllowedFaceMovements,
     activeAlert,
     activeAlertSeverity,
   } = useProctorStore();
@@ -194,10 +196,11 @@ export const ExamRoom: React.FC = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Automated Exam Termination Countdown
-  const [terminationCountdown, setTerminationCountdown] = useState<number>(3);
+  const [terminationCountdown, setTerminationCountdown] = useState<number>(5);
 
   // Tab Switch Violation & Grace Period States (Option B: 1 Warning with 10s Timer + 2nd Strike Disqualification)
   const [tabSwitchCount, setTabSwitchCount] = useState<number>(0);
+  const tabSwitchCountRef = useRef<number>(0);
   const [showTabSwitchWarning, setShowTabSwitchWarning] = useState<boolean>(false);
   const [tabSwitchCountdown, setTabSwitchCountdown] = useState<number>(10);
   const lastTabSwitchTimeRef = useRef<number>(0);
@@ -231,72 +234,70 @@ export const ExamRoom: React.FC = () => {
   const { isFullscreen, requestFullscreen, isMobile, setIsFullscreen } = useFullscreen(handleExitFullscreen);
 
   // Anti-Cheat: Tab Visibility Listener
-  useTabVisibility(() => {
+  const handleTabSwitch = useCallback(() => {
     if (!isLiveProctored || isTerminated) return;
 
     const now = Date.now();
     if (now - lastTabSwitchTimeRef.current < 2000) return;
     lastTabSwitchTimeRef.current = now;
 
-    setTabSwitchCount((prev) => {
-      const nextCount = prev + 1;
+    tabSwitchCountRef.current += 1;
+    const currentCount = tabSwitchCountRef.current;
+    setTabSwitchCount(currentCount);
 
-      if (nextCount === 1) {
-        setShowTabSwitchWarning(true);
-        setTabSwitchCountdown(10);
-        reportWarning(
-          'tab_switch',
-          'Warning: Tab switch detected (Strike 1 of 2). You have 10 seconds to return before disqualification.'
-        );
-      } else {
-        setShowTabSwitchWarning(false);
-        const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
-        terminateImmediately(
-          'Final Disqualification: Multiple tab switches detected (Strike 2 of 2). Examination terminated.',
-          'tab_switch'
-        );
-        if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
-          localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
-          const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
-          try {
-            document.cookie = `${termKey}=true; path=/; max-age=86400; SameSite=Strict`;
-          } catch {}
-        }
+    if (currentCount === 1) {
+      setShowTabSwitchWarning(true);
+      setTabSwitchCountdown(10);
+      reportWarning(
+        'tab_switch',
+        'Warning: Tab switch detected (Strike 1 of 2). You have 10 seconds to return before disqualification.'
+      );
+    } else {
+      setShowTabSwitchWarning(false);
+      const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
+      terminateImmediately(
+        'Final Disqualification: Multiple tab switches detected (Strike 2 of 2). Examination terminated.',
+        'tab_switch'
+      );
+      if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
+        localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+        const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+        try {
+          document.cookie = `${termKey}=true; path=/; max-age=86400; SameSite=Strict`;
+        } catch {}
       }
+    }
+  }, [isLiveProctored, isTerminated, activeAttempt, currentQuiz, reportWarning, terminateImmediately]);
 
-      return nextCount;
-    });
-  });
+  useTabVisibility(handleTabSwitch);
 
   // 10-Second Tab-Switch Grace Countdown Timer
   useEffect(() => {
     if (!showTabSwitchWarning || isTerminated) return;
 
+    if (tabSwitchCountdown <= 0) {
+      setShowTabSwitchWarning(false);
+      const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
+      terminateImmediately(
+        'Disqualification: Failed to resume examination within the 10-second warning window.',
+        'tab_switch'
+      );
+      if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
+        localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+        const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+        try {
+          document.cookie = `${termKey}=true; path=/; max-age=86400; SameSite=Strict`;
+        } catch {}
+      }
+      return;
+    }
+
     const timer = setInterval(() => {
-      setTabSwitchCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setShowTabSwitchWarning(false);
-          const isMasterUser = activeAttempt?.userEmail?.toLowerCase() === 'subhamkhandual215@gmail.com';
-          terminateImmediately(
-            'Disqualification: Failed to resume examination within the 10-second warning window.',
-            'tab_switch'
-          );
-          if (!isMasterUser && typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
-            localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
-            const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
-            try {
-              document.cookie = `${termKey}=true; path=/; max-age=86400; SameSite=Strict`;
-            } catch {}
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTabSwitchCountdown((prev) => Math.max(0, prev - 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showTabSwitchWarning, isTerminated, terminateImmediately, activeAttempt, currentQuiz]);
+  }, [showTabSwitchWarning, isTerminated, tabSwitchCountdown, activeAttempt, currentQuiz, terminateImmediately]);
 
   const handleResumeFromTabSwitch = async () => {
     setShowTabSwitchWarning(false);
@@ -346,6 +347,17 @@ export const ExamRoom: React.FC = () => {
   useEffect(() => {
     if (activeAttempt?.userEmail && currentQuiz?.id && typeof window !== 'undefined') {
       const isMasterUser = APP_CONFIG.isMasterEmail(activeAttempt.userEmail);
+      const isMock = Boolean(currentQuiz.id?.includes('-mock') || !currentQuiz.isProctored);
+
+      // Mock and practice examinations are strictly exempt from persistent single-attempt lockouts
+      if (isMock) {
+        if (isTerminated) {
+          resetProctor();
+          setTerminationCountdown(8);
+        }
+        return;
+      }
+
       if (!isMasterUser) {
         const wasTerminated = localStorage.getItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`);
         const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
@@ -356,16 +368,17 @@ export const ExamRoom: React.FC = () => {
 
         if (wasTerminated || cookieTerminated) {
           if (!isTerminated) {
+            setTerminationCountdown(8);
             terminateImmediately('Previous session was disqualified and permanently terminated for this subject.', 'tab_switch');
           }
         } else if (isTerminated) {
           // Independent Subject Isolation: Reset in-memory termination for a fresh non-terminated subject
           resetProctor();
-          setTerminationCountdown(3);
+          setTerminationCountdown(8);
         }
       } else if (isTerminated) {
         resetProctor();
-        setTerminationCountdown(3);
+        setTerminationCountdown(8);
       }
     }
   }, [activeAttempt, currentQuiz, isTerminated, terminateImmediately, resetProctor]);
@@ -386,7 +399,8 @@ export const ExamRoom: React.FC = () => {
 
       if (activeAttempt?.userEmail && currentQuiz?.id) {
         const isMasterUser = APP_CONFIG.isMasterEmail(activeAttempt.userEmail);
-        if (!isMasterUser) {
+        const isMock = Boolean(currentQuiz.id?.includes('-mock') || !currentQuiz.isProctored);
+        if (!isMasterUser && !isMock) {
           localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
           localStorage.setItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`, activeAttempt.id);
           const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
@@ -709,30 +723,75 @@ export const ExamRoom: React.FC = () => {
           <AlertTriangle className="w-16 h-16 text-rose-500 mb-4 animate-pulse" />
           <h2 className="text-2xl font-black text-white mb-2">Examination Terminated</h2>
           <p className="text-rose-200 max-w-md text-sm mb-4 font-inter">
-            {activeAlert || (faceAbsenceCount > maxAllowedFaceAbsences
-              ? `Your examination has been automatically terminated because candidate left camera view (${maxAllowedFaceAbsences} chances exceeded).`
+            {activeAlert || (faceMovementCount > maxAllowedFaceMovements
+              ? `Your examination has been automatically terminated due to repeated face displacement away from camera center (2 strikes exceeded).`
+              : faceAbsenceCount > maxAllowedFaceAbsences
+              ? `Your examination has been automatically terminated because candidate left camera view (2 strikes exceeded).`
               : `Your examination has been automatically terminated due to excessive proctoring violations (${violationsCount} of ${maxAllowedViolations} maximum permitted).`)}
           </p>
           <div className="mb-6 px-4 py-2 rounded-xl bg-red-900/60 border border-red-500/40 text-red-200 text-sm font-semibold flex items-center justify-center gap-2">
             <span>Auto-quitting exam in</span>
             <span className="text-xl font-black font-poppins text-white tabular-nums">{terminationCountdown}s</span>
           </div>
-          <Button
-            variant="danger"
-            size="lg"
-            onClick={() => {
-              if (typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
-                localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
-                const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
-                try {
-                  document.cookie = APP_CONFIG.buildCookieString(termKey, 'true', 604800);
-                } catch {}
-              }
-              router.push('/candidate');
-            }}
-          >
-            Exit to Candidate Portal Now
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+            <Button
+              variant="danger"
+              size="lg"
+              className="flex-1 cursor-pointer"
+              onClick={() => {
+                if (typeof window !== 'undefined' && activeAttempt?.userEmail && currentQuiz?.id) {
+                  localStorage.setItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`, 'true');
+                  const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+                  try {
+                    document.cookie = APP_CONFIG.buildCookieString(termKey, 'true', 604800);
+                  } catch {}
+                }
+                router.push('/candidate');
+              }}
+            >
+              Exit to Candidate Portal Now
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="flex-1 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 cursor-pointer text-xs py-3"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  if (activeAttempt?.userEmail && currentQuiz?.id) {
+                    localStorage.removeItem(`mines_terminated_${activeAttempt.userEmail}_${currentQuiz.id}`);
+                    localStorage.removeItem(`mines_attempt_${activeAttempt.userEmail}_${currentQuiz.id}`);
+                    const termKey = `mines_term_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+                    const subKey = `mines_sub_${btoa(activeAttempt.userEmail + '_' + currentQuiz.id).replace(/=/g, '')}`;
+                    APP_CONFIG.clearCookie(termKey);
+                    APP_CONFIG.clearCookie(subKey);
+                  }
+                  // Clean all matching termination and attempt entries from localStorage
+                  Object.keys(localStorage).forEach((key) => {
+                    if (
+                      (key.startsWith('mines_terminated_') || key.startsWith('mines_attempt_')) &&
+                      currentQuiz?.id &&
+                      key.includes(currentQuiz.id)
+                    ) {
+                      localStorage.removeItem(key);
+                    }
+                  });
+                  // Clean any matching cookies
+                  try {
+                    document.cookie.split(';').forEach((c) => {
+                      const cookieName = c.split('=')[0].trim();
+                      if (cookieName.startsWith('mines_term_') || cookieName.startsWith('mines_sub_')) {
+                        APP_CONFIG.clearCookie(cookieName);
+                      }
+                    });
+                  } catch {}
+                }
+                resetProctor();
+                window.location.reload();
+              }}
+            >
+              Reset &amp; Retry (Testing Mode)
+            </Button>
+          </div>
         </div>
       )}
 
@@ -765,7 +824,7 @@ export const ExamRoom: React.FC = () => {
           3. MAIN EXAMINATION CANVAS
           Conditional Rendering: Exactly ONE ProctorWidget mounted to prevent hardware lock
           ========================================================================= */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-3 sm:p-6">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-3 sm:p-6 pb-24 sm:pb-6">
         {isMobile ? (
           /* =========================================================================
              MOBILE VIEWPORT (Single-Column Vertical Ergonomic Stack)

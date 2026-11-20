@@ -2,7 +2,7 @@
  * Mines Quiz Shared Type Definitions
  */
 
-export type UserRole = 'student' | 'proctor' | 'admin';
+export type UserRole = 'student' | 'proctor' | 'admin' | 'both';
 
 export interface UserProfile {
   id: string;
@@ -50,6 +50,7 @@ export interface Quiz {
   questions?: Question[];
   shuffleQuestions: boolean;
   proctoringEnabled: boolean;
+  isProctored?: boolean;
   maxViolationsAllowed: number;
   status: QuizStatus;
   scheduledStartTime?: string;

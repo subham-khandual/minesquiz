@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import { Server as SocketIOServer } from 'socket.io';
 import { env } from './config/env';
 import { connectDatabase } from './config/db';
@@ -10,6 +11,7 @@ import { generalLimiter } from './middlewares/rateLimiter';
 import { helmetConfig } from './config/helmet';
 import { corsConfig } from './config/cors';
 import { logger } from './utils/logger';
+import { appState } from './config/appState';
 
 async function bootstrap() {
   const app = express();
@@ -91,10 +93,62 @@ async function bootstrap() {
     });
   });
 
-  server.listen(env.PORT, () => {
+  const serverInstance = server.listen(env.PORT, () => {
     logger.info(`🚀 Mines Quiz Backend API Server listening on port ${env.PORT} (${env.NODE_ENV})`);
     logger.info(`Health check available at http://localhost:${env.PORT}/api/v1/health`);
   });
+
+  // Graceful Shutdown & Connection Draining Protocol for Zero-Downtime Deployments
+  const handleGracefulShutdown = async (signal: string) => {
+    if (appState.isShuttingDown) return;
+    appState.isShuttingDown = true;
+    logger.info(`[Shutdown] Received ${signal}. Starting graceful shutdown and connection draining...`);
+
+    // 1. Notify connected Socket.io WebRTC clients of impending restart
+    try {
+      io.emit('server_shutdown', {
+        message: 'Server restarting for deployment. Client will reconnect automatically.',
+        timestamp: Date.now(),
+      });
+    } catch (socketWarn) {
+      logger.warn('[Shutdown] Socket broadcast notice:', socketWarn);
+    }
+
+    // 2. Stop accepting new HTTP connections and drain in-flight requests
+    serverInstance.close(() => {
+      logger.info('[Shutdown] HTTP server closed. In-flight requests successfully drained.');
+    });
+
+    // 3. Gracefully disconnect Socket.io engine
+    try {
+      io.close();
+      logger.info('[Shutdown] Socket.io connections closed.');
+    } catch {}
+
+    // 4. Forceful exit failsafe if draining exceeds 15 seconds
+    const forceExitTimer = setTimeout(() => {
+      logger.error('[Shutdown] Draining timed out after 15s. Forcing exit.');
+      process.exit(1);
+    }, 15000);
+    forceExitTimer.unref();
+
+    // 5. Cleanly close MongoDB connection
+    try {
+      if (mongoose.connection.readyState !== 0) {
+        await mongoose.connection.close(false);
+        logger.info('[Shutdown] MongoDB Atlas connection cleanly closed.');
+      }
+    } catch (dbErr) {
+      logger.warn('[Shutdown] Database close warning:', dbErr);
+    }
+
+    clearTimeout(forceExitTimer);
+    logger.info('[Shutdown] Graceful shutdown complete. Exiting cleanly.');
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
 }
 
 bootstrap().catch((err) => {

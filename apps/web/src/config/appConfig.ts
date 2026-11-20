@@ -28,4 +28,21 @@ export const APP_CONFIG = {
     const secureFlag = isHttps ? '; Secure' : '';
     return `${key}=${value}; path=/; max-age=${maxAgeSeconds}; SameSite=Strict${secureFlag}`;
   },
+
+  /**
+   * Secure cookie clearing helper removing cookies across paths and secure flags.
+   */
+  clearCookie: (key: string): void => {
+    if (typeof document === 'undefined') return;
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const secureFlags = isHttps ? ['', '; Secure'] : [''];
+    const paths = ['/', '/exam', '/candidate', ''];
+    paths.forEach((p) => {
+      secureFlags.forEach((sec) => {
+        const pathAttr = p ? `; path=${p}` : '';
+        document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0${pathAttr}; SameSite=Strict${sec}`;
+        document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0${pathAttr}${sec}`;
+      });
+    });
+  },
 };

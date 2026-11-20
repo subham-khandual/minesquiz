@@ -2,32 +2,38 @@ import { useEffect, useRef } from 'react';
 
 export function useTabVisibility(onTabSwitch: () => void) {
   const switchCountRef = useRef(0);
+  const initialGraceUntilRef = useRef(0);
+  const lastSwitchTimeRef = useRef(0);
 
   useEffect(() => {
+    // 10-second initial warmup grace buffer for camera permissions and fullscreen setup
+    initialGraceUntilRef.current = Date.now() + 10000;
+
+    const triggerSwitch = () => {
+      const now = Date.now();
+      // Ignore all focus and visibility events during initial 10s startup grace window
+      if (now < initialGraceUntilRef.current) {
+        return;
+      }
+      // Debounce rapid events within 2 seconds
+      if (now - lastSwitchTimeRef.current < 2000) {
+        return;
+      }
+      lastSwitchTimeRef.current = now;
+      switchCountRef.current += 1;
+      onTabSwitch();
+    };
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        switchCountRef.current += 1;
-        onTabSwitch();
+        triggerSwitch();
       }
     };
 
     const handleWindowBlur = () => {
-      const isMobile =
-        typeof window !== 'undefined' &&
-        (window.innerWidth <= 768 ||
-          'ontouchstart' in window ||
-          (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
-
-      if (isMobile) {
-        // On mobile devices, only count blur if the page is actually hidden or backgrounded
-        if (document.hidden) {
-          switchCountRef.current += 1;
-          onTabSwitch();
-        }
-      } else {
-        // On desktop, window blur indicates candidate switched focus outside the active exam window
-        switchCountRef.current += 1;
-        onTabSwitch();
+      // Require document.hidden so permission popups or momentary focus shifts do not false-trigger
+      if (document.hidden) {
+        triggerSwitch();
       }
     };
 

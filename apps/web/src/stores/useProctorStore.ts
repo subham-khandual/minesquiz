@@ -9,6 +9,8 @@ interface ProctorState {
   maxAllowedFaceAbsences: number;
   lipMovementCount: number;
   maxAllowedLipMovements: number;
+  faceMovementCount: number;
+  maxAllowedFaceMovements: number;
   activeAlert: string | null;
   activeAlertSeverity?: 'critical' | 'warning' | 'info';
   recentViolations: { type: ProctorViolationType; message: string; timestamp: string }[];
@@ -20,6 +22,7 @@ interface ProctorState {
   reportWarning: (type: ProctorViolationType, message: string) => void;
   reportFaceAbsence: (message?: string) => void;
   reportLipMovement: (message?: string) => void;
+  reportFaceMovement: (message?: string) => void;
   terminateImmediately: (reason: string, type?: ProctorViolationType) => void;
   clearActiveAlert: () => void;
   resetProctor: () => void;
@@ -33,6 +36,8 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
   maxAllowedFaceAbsences: 1,
   lipMovementCount: 0,
   maxAllowedLipMovements: 1,
+  faceMovementCount: 0,
+  maxAllowedFaceMovements: 1,
   activeAlert: null,
   activeAlertSeverity: undefined,
   recentViolations: [],
@@ -75,9 +80,12 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
     const newAbsenceCount = faceAbsenceCount + 1;
     const isTerminated = newAbsenceCount > 1;
 
-    const alertMessage = isTerminated
-      ? 'Disqualification: Face missing from camera (Strike 2 of 2). Examination terminated.'
-      : (message || 'Warning: Face missing from camera (Strike 1 of 2). Please keep your face centered towards the camera.');
+    let alertMessage: string;
+    if (isTerminated) {
+      alertMessage = 'Disqualification: Candidate face was absent from camera frame (Strike 2 of 2). Examination terminated.';
+    } else {
+      alertMessage = message || 'Warning: Face not detected in camera frame (Strike 1 of 2). Please align your face inside the camera view immediately.';
+    }
 
     set({
       faceAbsenceCount: newAbsenceCount,
@@ -112,13 +120,39 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
     });
   },
 
+  reportFaceMovement: (message) => {
+    const { faceMovementCount, recentViolations } = get();
+    const newMovementCount = faceMovementCount + 1;
+    const isTerminated = newMovementCount > 1;
+
+    let alertMessage: string;
+    if (isTerminated) {
+      alertMessage = 'Disqualification: Second instance of face displacement detected (Strike 2 of 2). Examination terminated.';
+    } else {
+      alertMessage = message || 'Warning: Face moved away from camera center (Strike 1 of 2). Please keep your face centered inside the frame.';
+    }
+
+    set({
+      faceMovementCount: newMovementCount,
+      activeAlert: alertMessage,
+      activeAlertSeverity: isTerminated ? 'critical' : 'warning',
+      isTerminated,
+      recentViolations: [
+        { type: 'looking_away', message: alertMessage, timestamp: new Date().toLocaleTimeString() },
+        ...recentViolations.slice(0, 9),
+      ],
+    });
+  },
+
   terminateImmediately: (reason, type = 'multiple_faces') => {
-    const { recentViolations, lipMovementCount } = get();
+    const { recentViolations, lipMovementCount, faceAbsenceCount, faceMovementCount } = get();
     set({
       isTerminated: true,
       activeAlert: reason,
       activeAlertSeverity: 'critical',
       lipMovementCount: type === 'lip_movement' ? Math.max(lipMovementCount, 2) : lipMovementCount,
+      faceAbsenceCount: type === 'no_face' ? Math.max(faceAbsenceCount, 2) : faceAbsenceCount,
+      faceMovementCount: type === 'looking_away' ? Math.max(faceMovementCount, 2) : faceMovementCount,
       recentViolations: [
         { type, message: reason, timestamp: new Date().toLocaleTimeString() },
         ...recentViolations.slice(0, 9),
@@ -134,6 +168,7 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
       violationsCount: 0,
       faceAbsenceCount: 0,
       lipMovementCount: 0,
+      faceMovementCount: 0,
       activeAlert: null,
       activeAlertSeverity: undefined,
       recentViolations: [],

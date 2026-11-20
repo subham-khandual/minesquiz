@@ -56,7 +56,7 @@ export default function CandidatePortalPage() {
   // Automatic Fresh Reset: clears prior attempts and lockouts so candidate can take exam fresh
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const CANDIDATE_SCHEMA_VERSION = 'v4.1';
+      const CANDIDATE_SCHEMA_VERSION = 'v4.3';
       const stored = localStorage.getItem('mines_candidate_schema_version');
       if (stored !== CANDIDATE_SCHEMA_VERSION) {
         Object.keys(localStorage).forEach((key) => {
@@ -78,9 +78,16 @@ export default function CandidatePortalPage() {
             localStorage.getItem('mines_candidate_email') ||
             '';
           if (rawEmail) {
-            document.cookie = `mines_sub_${btoa(rawEmail).replace(/=/g, '')}=; path=/; max-age=0; SameSite=Strict`;
-            document.cookie = `mines_term_${btoa(rawEmail).replace(/=/g, '')}=; path=/; max-age=0; SameSite=Strict`;
+            APP_CONFIG.clearCookie(`mines_sub_${btoa(rawEmail).replace(/=/g, '')}`);
+            APP_CONFIG.clearCookie(`mines_term_${btoa(rawEmail).replace(/=/g, '')}`);
           }
+          // Also purge any existing scoped mines_term_ or mines_sub_ cookies
+          document.cookie.split(';').forEach((c) => {
+            const cookieName = c.split('=')[0].trim();
+            if (cookieName.startsWith('mines_term_') || cookieName.startsWith('mines_sub_')) {
+              APP_CONFIG.clearCookie(cookieName);
+            }
+          });
         } catch {}
         localStorage.setItem('mines_candidate_schema_version', CANDIDATE_SCHEMA_VERSION);
       }

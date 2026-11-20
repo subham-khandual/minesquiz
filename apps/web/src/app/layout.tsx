@@ -80,6 +80,12 @@ export const metadata: Metadata = {
     creator: '@subhamkhandual',
     images: ['/images/minesquiz-logo.png'],
   },
+  verification: {
+    google: '7E9-d-bVpbXdQmSaTmY_aHsga7RWHRioRTePXMyXSJc',
+    other: {
+      'msvalidate.01': '17E18115B4367FE07A8B010A81A3F102',
+    },
+  },
   robots: {
     index: true,
     follow: true,

@@ -17,6 +17,69 @@ candidatesStore.set('subhamkhandual215@gmail.com', {
   createdAt: new Date().toISOString(),
 });
 
+// Persistent Key-Value & In-Memory Store Adapter
+// Reads and writes to env.MINES_KV if bound, with in-memory Map fallback
+async function getStoredValue(storeMap, env, key) {
+  if (env && env.MINES_KV) {
+    try {
+      const kvVal = await env.MINES_KV.get(key, 'json');
+      if (kvVal !== null && kvVal !== undefined) {
+        storeMap.set(key, kvVal);
+        return kvVal;
+      }
+    } catch {}
+  }
+  return storeMap.get(key);
+}
+
+async function setStoredValue(storeMap, env, key, value, ttlSeconds) {
+  storeMap.set(key, value);
+  if (env && env.MINES_KV) {
+    try {
+      await env.MINES_KV.put(key, JSON.stringify(value), ttlSeconds ? { expirationTtl: ttlSeconds } : undefined);
+    } catch {}
+  }
+}
+
+async function deleteStoredValue(storeMap, env, key) {
+  storeMap.delete(key);
+  if (env && env.MINES_KV) {
+    try {
+      await env.MINES_KV.delete(key);
+    } catch {}
+  }
+}
+
+async function getStoredAttempts(env) {
+  if (env && env.MINES_KV) {
+    try {
+      const kvVal = await env.MINES_KV.get('__attempts_ledger__', 'json');
+      if (Array.isArray(kvVal)) {
+        return kvVal;
+      }
+    } catch {}
+  }
+  return candidateAttemptsStore;
+}
+
+async function addStoredAttempt(env, record) {
+  candidateAttemptsStore.push(record);
+  if (env && env.MINES_KV) {
+    try {
+      await env.MINES_KV.put('__attempts_ledger__', JSON.stringify(candidateAttemptsStore));
+    } catch {}
+  }
+}
+
+async function clearStoredAttempts(env) {
+  candidateAttemptsStore.length = 0;
+  if (env && env.MINES_KV) {
+    try {
+      await env.MINES_KV.delete('__attempts_ledger__');
+    } catch {}
+  }
+}
+
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -254,7 +317,8 @@ export default {
           const body = await request.json();
           const email = body?.email ? String(body.email).trim().toLowerCase() : '';
           const isMasterUser = email === 'subhamkhandual215@gmail.com';
-          const exists = candidatesStore.has(email) || isMasterUser;
+          const storedCandidate = await getStoredValue(candidatesStore, env, email);
+          const exists = Boolean(storedCandidate) || isMasterUser;
           return jsonResponse({
             exists,
             provider: isMasterUser ? 'master' : exists ? 'account' : null,
@@ -278,7 +342,8 @@ export default {
             return jsonResponse({ success: false, error: 'Valid email address is required.' }, 400);
           }
 
-          if (candidatesStore.has(email)) {
+          const existingCandidate = await getStoredValue(candidatesStore, env, email);
+          if (existingCandidate) {
             return jsonResponse({
               success: false,
               code: 'EMAIL_ALREADY_REGISTERED',
@@ -287,12 +352,12 @@ export default {
           }
 
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          studentOtpStore.set(email, {
+          await setStoredValue(studentOtpStore, env, email, {
             otp,
             fullName,
             expiresAt: Date.now() + 600000,
             attempts: 0,
-          });
+          }, 600);
 
           const html = generateCandidateOtpEmailHtml(fullName, otp);
           const emailSent = await sendGmailSmtp({
@@ -327,22 +392,23 @@ export default {
             return jsonResponse({ success: false, error: 'Both email and 6-digit OTP code are required.' }, 400);
           }
 
-          const entry = studentOtpStore.get(email);
+          const entry = await getStoredValue(studentOtpStore, env, email);
           if (!entry || Date.now() > entry.expiresAt) {
             return jsonResponse({ success: false, error: 'Verification code expired or not found. Please request a new code.' }, 400);
           }
 
           if (entry.otp !== otp) {
             entry.attempts = (entry.attempts || 0) + 1;
+            await setStoredValue(studentOtpStore, env, email, entry, 600);
             return jsonResponse({ success: false, error: 'Invalid verification code. Please check your email and try again.' }, 400);
           }
 
-          studentOtpStore.delete(email);
+          await deleteStoredValue(studentOtpStore, env, email);
           const candidateId = 'cand-' + Math.random().toString(36).substring(2, 10);
           const token = 'cand-jwt-' + btoa(email + ':' + Date.now());
 
           if (password) {
-            candidatesStore.set(email, {
+            await setStoredValue(candidatesStore, env, email, {
               id: candidateId,
               email,
               fullName: entry.fullName,
@@ -380,7 +446,7 @@ export default {
             return jsonResponse({ success: false, error: 'Email and password are required.' }, 400);
           }
 
-          const cand = candidatesStore.get(email);
+          const cand = await getStoredValue(candidatesStore, env, email);
           if (cand && cand.password === password) {
             const token = 'cand-jwt-' + btoa(email + ':' + Date.now());
             return jsonResponse({
@@ -413,10 +479,10 @@ export default {
           }
 
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          studentResetOtpStore.set(email, {
+          await setStoredValue(studentResetOtpStore, env, email, {
             otp,
             expiresAt: Date.now() + 600000,
-          });
+          }, 600);
 
           const html = `
             <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
@@ -449,14 +515,14 @@ export default {
           const email = body?.email ? String(body.email).trim().toLowerCase() : '';
           const otp = body?.otp ? String(body.otp).trim() : '';
 
-          const entry = studentResetOtpStore.get(email);
+          const entry = await getStoredValue(studentResetOtpStore, env, email);
           if (!entry || Date.now() > entry.expiresAt || entry.otp !== otp) {
             return jsonResponse({ success: false, error: 'Invalid or expired reset code.' }, 400);
           }
 
-          studentResetOtpStore.delete(email);
+          await deleteStoredValue(studentResetOtpStore, env, email);
           const resetToken = 'rst-' + Math.random().toString(36).substring(2, 12);
-          studentResetTokenStore.set(email, { token: resetToken, expiresAt: Date.now() + 900000 });
+          await setStoredValue(studentResetTokenStore, env, email, { token: resetToken, expiresAt: Date.now() + 900000 }, 900);
 
           return jsonResponse({ success: true, resetToken });
         } catch (err) {
@@ -472,15 +538,16 @@ export default {
           const resetToken = body?.resetToken;
           const newPassword = body?.newPassword;
 
-          const tokenEntry = studentResetTokenStore.get(email);
+          const tokenEntry = await getStoredValue(studentResetTokenStore, env, email);
           if (!tokenEntry || tokenEntry.token !== resetToken || Date.now() > tokenEntry.expiresAt) {
             return jsonResponse({ success: false, error: 'Invalid or expired password reset token.' }, 400);
           }
 
-          studentResetTokenStore.delete(email);
-          const cand = candidatesStore.get(email);
+          await deleteStoredValue(studentResetTokenStore, env, email);
+          const cand = await getStoredValue(candidatesStore, env, email);
           if (cand) {
             cand.password = newPassword;
+            await setStoredValue(candidatesStore, env, email, cand);
           }
 
           return jsonResponse({ success: true, message: 'Password updated successfully.' });
@@ -572,7 +639,7 @@ export default {
           }
 
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          adminOtpStore.set(email, { otp, expiresAt: Date.now() + 600000 });
+          await setStoredValue(adminOtpStore, env, email, { otp, expiresAt: Date.now() + 600000 }, 600);
 
           const html = generateAdminOtpEmailHtml(otp);
           const emailSent = await sendGmailSmtp({
@@ -599,12 +666,12 @@ export default {
           const email = body?.email ? String(body.email).trim().toLowerCase() : '';
           const otp = body?.otp ? String(body.otp).trim() : '';
 
-          const entry = adminOtpStore.get(email);
+          const entry = await getStoredValue(adminOtpStore, env, email);
           if (!entry || Date.now() > entry.expiresAt || entry.otp !== otp) {
             return jsonResponse({ success: false, error: 'Invalid or expired administrative verification code.' }, 400);
           }
 
-          adminOtpStore.delete(email);
+          await deleteStoredValue(adminOtpStore, env, email);
           const token = 'admin-jwt-' + btoa(email + ':' + Date.now());
           const resetToken = 'admin-reset-' + btoa(email + ':' + Date.now());
           return jsonResponse({ success: true, token, resetToken });
@@ -613,15 +680,16 @@ export default {
         }
       }
 
-      // Candidate Ledger APIs (Edge In-Memory Store)
+      // Candidate Ledger APIs (Edge Persistent & Fallback Store)
       if (pathname === '/api/admin/candidates') {
         if (request.method === 'GET') {
+          const candidatesList = await getStoredAttempts(env);
           return jsonResponse({
             success: true,
             data: {
-              candidates: candidateAttemptsStore,
+              candidates: candidatesList,
               kpis: {
-                totalCandidates: candidateAttemptsStore.length,
+                totalCandidates: candidatesList.length,
                 averageScore: 0,
                 passRate: 0,
                 flaggedCount: 0,
@@ -633,7 +701,7 @@ export default {
         if (request.method === 'POST') {
           try {
             const record = await request.json();
-            candidateAttemptsStore.push(record);
+            await addStoredAttempt(env, record);
             return jsonResponse({ success: true, record });
           } catch (e) {
             return jsonResponse({ success: false, error: e.message }, 500);
@@ -641,7 +709,7 @@ export default {
         }
 
         if (request.method === 'DELETE') {
-          candidateAttemptsStore.length = 0;
+          await clearStoredAttempts(env);
           return jsonResponse({
             success: true,
             message: 'All examination records have been completely reset.',
@@ -650,8 +718,21 @@ export default {
         }
       }
 
-      // Catch-all for any other /api/* endpoints
+      // Catch-all for any other /api/* endpoints (Reverse Proxy to Railway Backend)
       if (pathname.startsWith('/api')) {
+        const backendOrigin = env.BACKEND_API_URL || env.RAILWAY_URL;
+        if (backendOrigin && !backendOrigin.includes('localhost')) {
+          try {
+            const targetBackendUrl = new URL(pathname + url.search, backendOrigin);
+            return await fetch(targetBackendUrl.toString(), {
+              method: request.method,
+              headers: request.headers,
+              body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+            });
+          } catch (proxyErr) {
+            console.warn('[Worker Proxy Error]', proxyErr.message);
+          }
+        }
         return jsonResponse({ success: true, timestamp: Date.now() });
       }
 

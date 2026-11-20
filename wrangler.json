@@ -10,6 +10,7 @@
   },
   "vars": {
     "SMTP_HOST": "smtp.gmail.com",
-    "SMTP_USER": "assistantsayraa@gmail.com"
+    "SMTP_USER": "assistantsayraa@gmail.com",
+    "BACKEND_API_URL": "https://minesquiz-production.up.railway.app"
   }
 }

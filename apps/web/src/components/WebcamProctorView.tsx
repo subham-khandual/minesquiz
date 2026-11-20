@@ -33,6 +33,8 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
     maxAllowedViolations,
     faceAbsenceCount,
     maxAllowedFaceAbsences,
+    faceMovementCount,
+    maxAllowedFaceMovements,
     lipMovementCount,
     setCameraActive,
   } = useProctorStore();
@@ -100,6 +102,25 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
             <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/10 tracking-wider">
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
               <span>REC</span>
+            </div>
+
+            {/* Stationary Center Target Guide Reticle */}
+            <div
+              className={`absolute border-2 border-dashed rounded-2xl pointer-events-none transition-all duration-300 ${
+                poseStatus === 'center'
+                  ? 'border-emerald-500/40 bg-emerald-500/5'
+                  : 'border-amber-500/60 bg-amber-500/10 animate-pulse'
+              }`}
+              style={{
+                left: '26%',
+                top: '16%',
+                width: '48%',
+                height: '66%',
+              }}
+            >
+              <div className="absolute top-1 left-2 text-[9px] font-mono tracking-wider uppercase font-semibold text-white/50">
+                Center Target
+              </div>
             </div>
 
             {/* Dynamic AI Face Tracking Reticle */}
@@ -190,7 +211,7 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
           </span>
         </div>
 
-        {/* 2. Face Presence Policy (1 Chance) */}
+        {/* 2. Face Presence Policy (2 Strikes) */}
         <div className="flex items-center justify-between">
           <span className="text-slate-300">Face Presence Status</span>
           <span
@@ -201,12 +222,34 @@ export const WebcamProctorView: React.FC<WebcamProctorViewProps> = ({ attemptId 
             {faceAbsenceCount === 0 ? (
               <>
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>In Frame (1 Chance Active)</span>
+                <span>In Frame (Verified)</span>
               </>
             ) : (
               <>
                 <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
-                <span>Last Chance (0 Left)</span>
+                <span>Face Warning Active (1/2 Strikes)</span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* 2b. Face Centering Policy (2 Strikes) */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-300">Face Centering Status</span>
+          <span
+            className={`flex items-center gap-1 font-medium ${
+              faceMovementCount === 0 ? 'text-emerald-400' : 'text-amber-400 font-bold'
+            }`}
+          >
+            {faceMovementCount === 0 ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Centered</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
+                <span>Centering Warning Active (1/2 Strikes)</span>
               </>
             )}
           </span>
