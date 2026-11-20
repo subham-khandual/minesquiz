@@ -284,6 +284,42 @@ export default {
         }
       }
 
+      // Handle Sitemap XML with dynamic origin adaptation and proper XML MIME type
+      if (pathname === '/sitemap.xml') {
+        const sitemapUrl = new URL('/sitemap.xml', request.url);
+        let sitemapRes = await fetchAsset(sitemapUrl.toString());
+        if (sitemapRes.status === 200) {
+          let xmlText = await sitemapRes.text();
+          const requestedOrigin = url.origin;
+          if (requestedOrigin && !requestedOrigin.includes('minesquiz.com')) {
+            xmlText = xmlText.replaceAll('https://minesquiz.com', requestedOrigin);
+          }
+          const headers = new Headers();
+          headers.set('content-type', 'application/xml; charset=utf-8');
+          headers.set('Access-Control-Allow-Origin', '*');
+          headers.set('Cache-Control', 'public, max-age=3600');
+          return new Response(xmlText, { status: 200, headers });
+        }
+      }
+
+      // Handle Robots.txt with dynamic origin adaptation
+      if (pathname === '/robots.txt') {
+        const robotsUrl = new URL('/robots.txt', request.url);
+        let robotsRes = await fetchAsset(robotsUrl.toString());
+        if (robotsRes.status === 200) {
+          let robotsText = await robotsRes.text();
+          const requestedOrigin = url.origin;
+          if (requestedOrigin && !requestedOrigin.includes('minesquiz.com')) {
+            robotsText = robotsText.replaceAll('https://minesquiz.com', requestedOrigin);
+          }
+          const headers = new Headers();
+          headers.set('content-type', 'text/plain; charset=utf-8');
+          headers.set('Access-Control-Allow-Origin', '*');
+          headers.set('Cache-Control', 'public, max-age=3600');
+          return new Response(robotsText, { status: 200, headers });
+        }
+      }
+
       // Handle Next.js Image Optimization route statically by proxying to the raw asset
       if (pathname.startsWith('/_next/image')) {
         const rawImageUrl = url.searchParams.get('url');

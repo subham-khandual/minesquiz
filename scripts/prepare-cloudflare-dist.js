@@ -69,6 +69,24 @@ function prepareCloudflareDist() {
     }
   }
 
+  // Ensure sitemap.xml exists in dist
+  const serverSitemapBody = path.join(appServerDir, 'sitemap.xml.body');
+  const serverSitemapXml = path.join(appServerDir, 'sitemap.xml');
+  const distSitemap = path.join(distDir, 'sitemap.xml');
+  const publicSitemap = path.join(publicDir, 'sitemap.xml');
+  if (fs.existsSync(serverSitemapBody)) {
+    console.log('[Cloudflare Dist] Copying compiled sitemap.xml.body to dist/sitemap.xml...');
+    fs.copyFileSync(serverSitemapBody, distSitemap);
+    fs.copyFileSync(serverSitemapBody, publicSitemap);
+  } else if (fs.existsSync(serverSitemapXml)) {
+    console.log('[Cloudflare Dist] Copying compiled sitemap.xml to dist/sitemap.xml...');
+    fs.copyFileSync(serverSitemapXml, distSitemap);
+    fs.copyFileSync(serverSitemapXml, publicSitemap);
+  } else if (fs.existsSync(publicSitemap)) {
+    console.log('[Cloudflare Dist] Copying public/sitemap.xml to dist/sitemap.xml...');
+    fs.copyFileSync(publicSitemap, distSitemap);
+  }
+
   // 2. Copy Next.js static client chunks (_next/static)
   if (fs.existsSync(staticDir)) {
     console.log('[Cloudflare Dist] Copying .next/static/ chunks...');
