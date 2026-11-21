@@ -19,6 +19,26 @@ export interface FaceBoundingBox {
   height: number;
 }
 
+
+function playProctorBeep(frequency = 600, duration = 0.35) {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch {}
+}
+
 export function useFaceDetector({
   videoRef,
   attemptId,
@@ -47,6 +67,7 @@ export function useFaceDetector({
   const reportFaceMovement = useProctorStore((s) => s.reportFaceMovement);
   const terminateImmediately = useProctorStore((s) => s.terminateImmediately);
   const clearActiveAlert = useProctorStore((s) => s.clearActiveAlert);
+  const isFaceCalibrated = useProctorStore((s) => s.isFaceCalibrated);
 
   // Temporal debounce tracking to avoid false positives from natural eye blinks or camera blur
   const consecutiveLookingAwayRef = useRef(0);
@@ -86,6 +107,7 @@ export function useFaceDetector({
 
   const handleImmediateDisqualification = useCallback(
     async (type: ProctorViolationType, reason: string) => {
+      playProctorBeep(300, 0.8);
       terminateImmediately(reason, type);
       if (attemptId) {
         try {
@@ -147,7 +169,19 @@ export function useFaceDetector({
       }
       lastFaceAbsenceTimeRef.current = now;
 
-      reportFaceAbsence(message);
+      const currentAbsences = useProctorStore.getState().faceAbsenceCount;
+      if (currentAbsences === 0) {
+        playProctorBeep(580, 0.4);
+      } else {
+        playProctorBeep(320, 0.7);
+      }
+
+      reportFaceAbsence(
+        message ||
+          (currentAbsences === 0
+            ? 'Warning: Face not detected in camera frame (Strike 1 of 2). Please align your face inside the camera view immediately.'
+            : 'Disqualification: Candidate face was absent from camera frame (Strike 2 of 2). Examination terminated.')
+      );
 
       if (attemptId) {
         try {
@@ -202,7 +236,19 @@ export function useFaceDetector({
       }
       lastFaceMovementViolationTimeRef.current = now;
 
-      reportFaceMovement(message);
+      const currentMovements = useProctorStore.getState().faceMovementCount;
+      if (currentMovements === 0) {
+        playProctorBeep(620, 0.4);
+      } else {
+        playProctorBeep(320, 0.7);
+      }
+
+      reportFaceMovement(
+        message ||
+          (currentMovements === 0
+            ? 'Warning: Face moved away or cut off from the calibrated frame (Strike 1 of 2)! Please return to center immediately.'
+            : 'Disqualification: Repeated face cut-off from calibrated frame (Strike 2 of 2). Examination terminated.')
+      );
 
       if (attemptId) {
         try {
@@ -235,7 +281,7 @@ export function useFaceDetector({
     prevMouthDataRef.current = null;
     lookingAwayStrikeRef.current = 0;
     lastFaceAbsenceTimeRef.current = 0;
-    initialWarmupUntilRef.current = Date.now() + 10000; // 10 seconds warmup grace buffer
+    initialWarmupUntilRef.current = isFaceCalibrated ? 0 : Date.now() + 5000; // 10 seconds warmup grace buffer
 
     // Off-screen canvas for high-speed frame processing (160x120 = 19,200 pixels)
     const canvas = document.createElement('canvas');
@@ -431,10 +477,15 @@ export function useFaceDetector({
               // Spatial Face Movement Tracking: Checks if face centroid is significantly displacing away from safe screen zone
               // Calibrated Center Zone: Horizontal [0.30, 0.70], Vertical [0.20, 0.75] or 3D angles |yaw| > 26, |pitch| > 22
               let currentStatus: PoseStatus = 'center';
-              if (centerX < 0.30 || calcYaw < -26) currentStatus = 'left';
-              else if (centerX > 0.70 || calcYaw > 26) currentStatus = 'right';
-              else if (centerY > 0.75 || calcPitch > 22) currentStatus = 'down';
-              else if (centerY < 0.20 || calcPitch < -22) currentStatus = 'up';
+              const isLeftBoundaryCut = centerX < 0.28 || normX < 0.12 || calcYaw < -25;
+              const isRightBoundaryCut = centerX > 0.72 || (normX + normW) > 0.88 || calcYaw > 25;
+              const isTopBoundaryCut = centerY < 0.18 || normY < 0.08 || calcPitch < -20;
+              const isBottomBoundaryCut = centerY > 0.78 || (normY + normH) > 0.92 || calcPitch > 22;
+
+              if (isLeftBoundaryCut) currentStatus = 'left';
+              else if (isRightBoundaryCut) currentStatus = 'right';
+              else if (isBottomBoundaryCut) currentStatus = 'down';
+              else if (isTopBoundaryCut) currentStatus = 'up';
 
               setPoseStatus(currentStatus);
 
@@ -748,10 +799,15 @@ export function useFaceDetector({
         // Spatial Face Movement Tracking (Tier 2): Checks if face centroid is significantly displacing away from safe screen zone
         // Calibrated Center Zone: Horizontal [0.30, 0.70], Vertical [0.20, 0.75] or 3D angles |yaw| > 26, |pitch| > 22
         let currentStatus: PoseStatus = 'center';
-        if (normCentroidX < 0.30 || calcYaw < -26) currentStatus = 'left';
-        else if (normCentroidX > 0.70 || calcYaw > 26) currentStatus = 'right';
-        else if (normCentroidY > 0.75 || calcPitch > 22) currentStatus = 'down';
-        else if (normCentroidY < 0.20 || calcPitch < -22) currentStatus = 'up';
+        const isLeftBoundaryCut = normCentroidX < 0.28 || normX < 0.12 || calcYaw < -25;
+        const isRightBoundaryCut = normCentroidX > 0.72 || (normX + normW) > 0.88 || calcYaw > 25;
+        const isTopBoundaryCut = normCentroidY < 0.18 || normY < 0.08 || calcPitch < -20;
+        const isBottomBoundaryCut = normCentroidY > 0.78 || (normY + normH) > 0.92 || calcPitch > 22;
+
+        if (isLeftBoundaryCut) currentStatus = 'left';
+        else if (isRightBoundaryCut) currentStatus = 'right';
+        else if (isBottomBoundaryCut) currentStatus = 'down';
+        else if (isTopBoundaryCut) currentStatus = 'up';
 
         setPoseStatus(currentStatus);
 

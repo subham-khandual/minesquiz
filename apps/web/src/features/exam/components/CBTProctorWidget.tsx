@@ -35,6 +35,8 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
     maxAllowedFaceAbsences,
     lipMovementCount,
     faceMovementCount,
+    referenceFaceSnapshot,
+    isFaceCalibrated,
     setCameraActive,
   } = useProctorStore();
 
@@ -168,6 +170,15 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
               }}
             />
           )}
+          {referenceFaceSnapshot && (
+            <div className="absolute top-1 right-1 z-10 w-4 h-4 rounded-full overflow-hidden border border-emerald-400 shadow-xs" title="Calibrated Reference Face">
+              <img
+                src={referenceFaceSnapshot}
+                alt="Ref"
+                className="w-full h-full object-cover transform scale-x-[-1]"
+              />
+            </div>
+          )}
         </div>
 
         {/* Status Indicators on Right */}
@@ -202,7 +213,7 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
           {faceAbsenceCount > 0 && (
             <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
               <AlertTriangle className="w-3 h-3 text-amber-500 animate-pulse" />
-              <span>Face: Warning ({faceAbsenceCount}/3)</span>
+              <span>Face: Warning ({faceAbsenceCount}/2 Strikes)</span>
             </div>
           )}
         </div>
@@ -261,6 +272,18 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
           </div>
         )}
 
+        {/* Calibrated Reference Photo Badge */}
+        {referenceFaceSnapshot && (
+          <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-xs border border-emerald-500/60 rounded-full pl-1 pr-2 py-0.5 shadow-md">
+            <img
+              src={referenceFaceSnapshot}
+              alt="Calibrated Reference"
+              className="w-5 h-5 rounded-full object-cover transform scale-x-[-1] border border-emerald-400"
+            />
+            <span className="text-[9px] font-mono font-bold text-emerald-300 uppercase tracking-wider">Ref ID ✓</span>
+          </div>
+        )}
+
         {/* Safe Center Focus Reticle Oval */}
         {hasPermission && (
           <div
@@ -278,8 +301,8 @@ export const CBTProctorWidget: React.FC<CBTProctorWidgetProps> = ({
               height: '76%',
             }}
           >
-            <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-900/80 text-white whitespace-nowrap shadow-xs">
-              {poseStatus === 'center' ? 'Center Focus' : poseStatus === 'no_face' ? 'Face Absent' : poseStatus === 'multiple' ? 'Multiple Faces' : 'Out of Reticle'}
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900/90 text-white whitespace-nowrap shadow-sm border border-slate-700">
+              {poseStatus === 'center' ? 'Calibrated Frame ✓' : poseStatus === 'no_face' ? 'Face Absent' : poseStatus === 'multiple' ? 'Multiple Faces' : 'Face Cut Off / Out of Frame'}
             </div>
           </div>
         )}

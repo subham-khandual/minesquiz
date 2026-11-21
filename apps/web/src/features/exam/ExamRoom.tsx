@@ -38,6 +38,7 @@ import {
 import {
   CBTFooter,
 } from './components/CBTFooter';
+import { FaceCalibrationGateModal } from './components/FaceCalibrationGateModal';
 import {
   Maximize,
   AlertTriangle,
@@ -190,6 +191,9 @@ export const ExamRoom: React.FC = () => {
     maxAllowedFaceMovements,
     activeAlert,
     activeAlertSeverity,
+    isFaceCalibrated,
+    setFaceCalibrated,
+    referenceFaceSnapshot,
   } = useProctorStore();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -206,23 +210,24 @@ export const ExamRoom: React.FC = () => {
   const lastTabSwitchTimeRef = useRef<number>(0);
   const hasSyncedTerminationRef = useRef<boolean>(false);
 
-  // Lock question answering whenever proctoring strike / alert is active
-  const isQuestionLocked = isTerminated || showTabSwitchWarning || activeAlertSeverity === 'critical';
-
   // Determine if this session is an official Live Proctored Exam or proctored practice session
   const isStrictLive = Boolean(!currentQuiz?.id?.includes('-mock'));
   const isLiveProctored = Boolean(currentQuiz?.proctoringEnabled ?? true);
 
+  // Lock question answering whenever proctoring strike / alert is active
+  const isQuestionLocked = isTerminated || showTabSwitchWarning || activeAlertSeverity === 'critical' || (isLiveProctored && !isFaceCalibrated);
+
+
   // Countdown Timer Interval
   useEffect(() => {
-    if (!mounted || isTerminated || timeRemainingSeconds <= 0) return;
+    if (!mounted || isTerminated || timeRemainingSeconds <= 0 || (isLiveProctored && !isFaceCalibrated)) return;
 
     const timer = setInterval(() => {
       decrementTimer();
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [mounted, isTerminated, timeRemainingSeconds, decrementTimer]);
+  }, [mounted, isTerminated, timeRemainingSeconds, decrementTimer, isLiveProctored, isFaceCalibrated]);
 
   // Anti-Cheat: Fullscreen enforcer (Only for Live Proctored Exams, relaxed for mobile viewports)
   const handleExitFullscreen = useCallback(() => {
@@ -715,6 +720,17 @@ export const ExamRoom: React.FC = () => {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Step 1: Mandatory Face Setup & Calibration Gate */}
+      {isLiveProctored && !isFaceCalibrated && (
+        <FaceCalibrationGateModal
+          quizTitle={currentQuiz?.title || 'DGMS Statutory Examination'}
+          candidateName={activeAttempt?.userDisplayName || 'Candidate'}
+          onCalibrationComplete={(snapshot) => {
+            setFaceCalibrated(snapshot);
+          }}
+        />
       )}
 
       {/* Disqualification / Terminated Modal */}

@@ -3,6 +3,8 @@ import { ProctorViolationType } from '@mines-quiz/types';
 
 interface ProctorState {
   isCameraActive: boolean;
+  isFaceCalibrated: boolean;
+  referenceFaceSnapshot: string | null;
   violationsCount: number;
   maxAllowedViolations: number;
   faceAbsenceCount: number;
@@ -17,6 +19,8 @@ interface ProctorState {
   isTerminated: boolean;
 
   setCameraActive: (active: boolean) => void;
+  setFaceCalibrated: (snapshot: string | null) => void;
+  resetFaceCalibration: () => void;
   setMaxAllowedViolations: (max: number) => void;
   reportViolation: (type: ProctorViolationType, message: string) => void;
   reportWarning: (type: ProctorViolationType, message: string) => void;
@@ -30,6 +34,8 @@ interface ProctorState {
 
 export const useProctorStore = create<ProctorState>((set, get) => ({
   isCameraActive: false,
+  isFaceCalibrated: false,
+  referenceFaceSnapshot: null,
   violationsCount: 0,
   maxAllowedViolations: 10,
   faceAbsenceCount: 0,
@@ -44,6 +50,8 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
   isTerminated: false,
 
   setCameraActive: (active) => set({ isCameraActive: active }),
+  setFaceCalibrated: (snapshot) => set({ isFaceCalibrated: true, referenceFaceSnapshot: snapshot }),
+  resetFaceCalibration: () => set({ isFaceCalibrated: false, referenceFaceSnapshot: null }),
   setMaxAllowedViolations: (max) => set({ maxAllowedViolations: max }),
 
   reportViolation: (type, message) => {
@@ -165,6 +173,8 @@ export const useProctorStore = create<ProctorState>((set, get) => ({
   resetProctor: () =>
     set({
       isCameraActive: false,
+      isFaceCalibrated: false,
+      referenceFaceSnapshot: null,
       violationsCount: 0,
       faceAbsenceCount: 0,
       lipMovementCount: 0,
