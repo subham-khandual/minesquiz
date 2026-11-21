@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Question } from '@mines-quiz/types';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Languages } from 'lucide-react';
+import { translateToStatutoryHindi } from '../../../lib/statutoryTranslation';
 
 interface CBTQuestionCanvasProps {
   question: Question;
@@ -23,6 +24,13 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
 }) => {
   const isMultiple = question.type === 'multiple-select';
   const optionLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const [language, setLanguage] = useState<'en' | 'hi'>('en');
+
+  const displayedQuestionText = language === 'hi'
+    ? translateToStatutoryHindi(question.text)
+    : question.text;
+
+  const getOptionText = (text: string) => (language === 'hi' ? translateToStatutoryHindi(text) : text);
 
   return (
     <div className="w-full bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 sm:p-7 flex flex-col justify-between select-none">
@@ -43,6 +51,21 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
 
           {/* Marks Badges (DGMS Statutory Standard) */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* DGMS Statutory Bilingual Switcher */}
+            <button
+              type="button"
+              onClick={() => setLanguage((prev) => (prev === 'en' ? 'hi' : 'en'))}
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-md border text-[11px] sm:text-xs font-semibold transition-all shadow-2xs ${
+                language === 'hi'
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-amber-500/20'
+                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'
+              }`}
+              title="DGMS Statutory Bilingual Switcher (English / हिन्दी)"
+            >
+              <Languages className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span>{language === 'en' ? 'हिन्दी' : 'English'}</span>
+            </button>
+
             <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] sm:text-xs font-mono font-bold">
               Marks: +{question.marks || 1}
             </span>
@@ -69,7 +92,7 @@ export const CBTQuestionCanvas: React.FC<CBTQuestionCanvasProps> = ({
           onCopy={(e) => e.preventDefault()}
         >
           <h2 className="text-sm sm:text-xl font-poppins font-bold text-slate-900 leading-snug sm:leading-relaxed">
-            {question.text}
+            {displayedQuestionText}
           </h2>
         </div>
 

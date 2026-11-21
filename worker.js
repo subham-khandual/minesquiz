@@ -7,6 +7,7 @@ const studentResetTokenStore = new Map();
 const candidatesStore = new Map();
 const candidateAttemptsStore = [];
 const adminOtpStore = new Map();
+const proctorViolationsStore = new Map();
 
 // Pre-seed master identity with dual Administrator and Candidate authority
 candidatesStore.set('subhamkhandual215@gmail.com', {
@@ -752,6 +753,47 @@ export default {
             timestamp: Date.now(),
           });
         }
+      }
+
+      // Proctor Violation Logging with Visual Evidence Snapshots
+      if (pathname === '/api/proctor/violation' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          const { attemptId, type, severity, confidence, snapshotUrl } = body || {};
+          if (!attemptId) {
+            return jsonResponse({ error: 'attemptId is required' }, 400);
+          }
+          const violationRecord = {
+            id: 'viol-' + Math.random().toString(36).substring(2, 9),
+            attemptId,
+            type: type || 'looking_away',
+            severity: severity || 'warning',
+            confidence: confidence || 0.95,
+            snapshotUrl: snapshotUrl || null,
+            timestamp: new Date().toISOString(),
+          };
+
+          const key = 'viols_' + attemptId;
+          let list = (await getStoredValue(proctorViolationsStore, env, key)) || [];
+          if (!Array.isArray(list)) list = [];
+          list.unshift(violationRecord);
+          if (list.length > 25) list = list.slice(0, 25);
+          await setStoredValue(proctorViolationsStore, env, key, list, 86400 * 7);
+
+          return jsonResponse({ success: true, violation: violationRecord, totalViolations: list.length }, 201);
+        } catch (err) {
+          return jsonResponse({ success: false, error: err.message }, 500);
+        }
+      }
+
+      if (pathname === '/api/proctor/violations' && request.method === 'GET') {
+        const attemptId = url.searchParams.get('attemptId');
+        if (!attemptId) {
+          return jsonResponse({ error: 'attemptId is required' }, 400);
+        }
+        const key = 'viols_' + attemptId;
+        const list = (await getStoredValue(proctorViolationsStore, env, key)) || [];
+        return jsonResponse({ success: true, violations: list });
       }
 
       // Catch-all for any other /api/* endpoints (Reverse Proxy to Railway Backend)
