@@ -822,9 +822,16 @@ export default {
         const htmlRes = await fetchAsset(htmlUrl.toString());
 
         if (htmlRes.status !== 404) {
+          let htmlContent = await htmlRes.text();
+          const requestedOrigin = url.origin;
+          if (requestedOrigin && !requestedOrigin.includes('minesquiz.com')) {
+            htmlContent = htmlContent
+              .replaceAll('https://minesquiz.com', requestedOrigin)
+              .replaceAll('href="https://minesquiz.com"', `href="${requestedOrigin}"`);
+          }
           const headers = new Headers(htmlRes.headers);
           headers.set('content-type', 'text/html; charset=utf-8');
-          return new Response(htmlRes.body, {
+          return new Response(htmlContent, {
             status: htmlRes.status,
             statusText: htmlRes.statusText,
             headers,
@@ -869,9 +876,16 @@ export default {
         const fallbackUrl = new URL('/index.html', request.url);
         const fallbackResponse = await fetchAsset(fallbackUrl.toString());
         if (fallbackResponse.status !== 404) {
+          let fallbackContent = await fallbackResponse.text();
+          const requestedOrigin = url.origin;
+          if (requestedOrigin && !requestedOrigin.includes('minesquiz.com')) {
+            fallbackContent = fallbackContent
+              .replaceAll('https://minesquiz.com', requestedOrigin)
+              .replaceAll('href="https://minesquiz.com"', `href="${requestedOrigin}"`);
+          }
           const headers = new Headers(fallbackResponse.headers);
           headers.set('content-type', 'text/html; charset=utf-8');
-          return new Response(fallbackResponse.body, {
+          return new Response(fallbackContent, {
             status: 200,
             headers,
           });

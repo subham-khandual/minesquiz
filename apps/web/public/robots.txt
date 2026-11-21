@@ -17,6 +17,33 @@ Disallow: /results/
 Disallow: /admin/
 Disallow: /api/
 
+# Dedicated rule set for Microsoft Bingbot & MSNbot
+User-agent: Bingbot
+Allow: /
+Allow: /resources
+Allow: /ai-proctoring
+Allow: /features
+Allow: /how-it-works
+Allow: /trust-and-security
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /exam/
+Disallow: /results/
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: msnbot
+Allow: /
+Allow: /resources
+Allow: /ai-proctoring
+Allow: /features
+Allow: /how-it-works
+Allow: /trust-and-security
+Disallow: /exam/
+Disallow: /results/
+Disallow: /admin/
+Disallow: /api/
+
 # Dedicated rule set for AI search engines (Perplexity, ChatGPT, Claude)
 User-agent: GPTBot
 Allow: /
